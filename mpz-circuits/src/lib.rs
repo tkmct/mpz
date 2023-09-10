@@ -13,6 +13,7 @@ mod parse;
 mod tracer;
 pub mod types;
 
+pub mod arithmetic;
 #[doc(hidden)]
 pub use builder::BuilderState;
 pub use builder::{BuilderError, CircuitBuilder};
