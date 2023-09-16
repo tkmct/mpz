@@ -12,6 +12,7 @@ pub struct ArithmeticCircuit {
     pub(crate) inputs: Vec<ArithNode<Feed>>,
     pub(crate) outputs: Vec<ArithNode<Feed>>,
     pub(crate) gates: Vec<ArithGate>,
+    pub(crate) constants: Vec<Fp>,
     pub(crate) feed_count: usize,
 
     pub(crate) add_count: usize,
@@ -34,6 +35,11 @@ impl ArithmeticCircuit {
     /// Returns a reference to the gates of the circuit.
     pub fn gates(&self) -> &[ArithGate] {
         &self.gates
+    }
+
+    /// Returns a reference to the constans used in the circuit.
+    pub fn constants(&self) -> &[Fp] {
+        &self.constants
     }
 
     /// Returns the number of feeds in the circuit.
@@ -63,9 +69,52 @@ impl ArithmeticCircuit {
 
     /// Evaluate an arithmetic circuit with given input values.
     pub fn evaluate(&self, values: &[Fp]) -> Result<Vec<Fp>, CircuitError> {
-        // zip values and self.inputs and make feed list.
-        // evaluate each gate by iterating using the feed.
-        Ok(vec![Fp(1)])
+        if values.len() != self.inputs.len() {
+            return Err(CircuitError::InvalidInputCount(
+                self.inputs.len(),
+                values.len(),
+            ));
+        }
+
+        let mut feeds: Vec<Option<Fp>> = vec![None; self.feed_count()];
+
+        for (input, value) in self.inputs.iter().zip(values) {
+            feeds[input.id()] = Some(*value);
+        }
+
+        for gate in self.gates.iter() {
+            match gate {
+                ArithGate::Add { x, y, z } => {
+                    let x = feeds[x.id()].expect("Feed should be set");
+                    let y = feeds[y.id()].expect("Feed should be set");
+
+                    feeds[z.id()] = Some(Fp(x.0 + y.0));
+                }
+                ArithGate::Cmul { x, c, z } => {
+                    let x = feeds[x.id()].expect("Feed should be set");
+
+                    feeds[z.id()] = Some(Fp(x.0 * c.0));
+                }
+                ArithGate::Mul { x, y, z } => {
+                    let x = feeds[x.id()].expect("Feed should be set");
+                    let y = feeds[y.id()].expect("Feed should be set");
+
+                    // TODO: take mod p
+                    feeds[z.id()] = Some(Fp(x.0 * y.0));
+                } // TODO:
+                  // ArithGate::Proj { x, y, z } => {}
+            }
+        }
+
+        // collect output
+        let outputs = self
+            .outputs
+            .iter()
+            .cloned()
+            .map(|out| feeds[out.id()].expect("Feed should be set"))
+            .collect();
+
+        Ok(outputs)
     }
 }
 
@@ -85,14 +134,21 @@ mod tests {
 
     #[test]
     fn test_evaluate() {
-        // simple circuit
-        // calc: x*y + 5*x
-        // TODO: use circuit builder
-        let builder = ArithmeticCircuitBuilder::new();
+        // calc: a*b + 3*a
+        let mut builder = ArithmeticCircuitBuilder::new();
+
+        let a = builder.add_input();
+        let b = builder.add_input();
+        let c = builder.add_mul_gate(&a, &b);
+        let d = builder.add_cmul_gate(&a, Fp(3));
+        let out = builder.add_add_gate(&c, &d);
+
+        builder.add_output(&out);
+
         let circ = builder.build().unwrap();
 
-        let values = vec![];
+        let values = vec![Fp(3), Fp(5)];
         let res = circ.evaluate(&values).unwrap();
-        assert_eq!(res, vec![Fp(12)]);
+        assert_eq!(res, vec![Fp(24)]);
     }
 }

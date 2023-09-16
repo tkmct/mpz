@@ -1,5 +1,5 @@
 //! Definition of components used to construct arithmetic circuit.
-use super::types::ArithNode;
+use super::types::{ArithNode, Fp};
 use crate::components::{Feed, Sink};
 
 /// An arithmetic gate.
@@ -21,8 +21,8 @@ pub enum ArithGate {
     },
     Cmul {
         x: ArithNode<Sink>,
-        // constant value
-        y: ArithNode<Sink>,
+        /// constant value should be set as y value
+        c: Fp,
         z: ArithNode<Feed>,
     },
     // TODO: add PROJ gate
@@ -49,11 +49,11 @@ impl ArithGate {
 
     /// Returns the y input of the gate.
     /// For cmul operation, y is a constant value.
-    pub fn y(&self) -> &ArithNode<Sink> {
+    pub fn y(&self) -> Option<&ArithNode<Sink>> {
         match self {
-            ArithGate::Add { y, .. } => y,
-            ArithGate::Mul { y, .. } => y,
-            ArithGate::Cmul { y, .. } => y,
+            ArithGate::Add { y, .. } => Some(y),
+            ArithGate::Mul { y, .. } => Some(y),
+            ArithGate::Cmul { .. } => None,
         }
     }
 
