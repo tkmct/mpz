@@ -8,6 +8,7 @@ use crate::{BuilderError, Feed};
 use std::cell::RefCell;
 
 /// Arithmetic circuit builder.
+// FIXME: merge ArithmeticCircuitBuilder and its state.
 #[derive(Default)]
 pub struct ArithmeticCircuitBuilder {
     state: RefCell<ArithBuilderState>,
@@ -46,6 +47,7 @@ impl ArithmeticCircuitBuilder {
         state.outputs.push(*value);
     }
 
+    // FIXME: not needed?
     /// Add a constant wire to circuit.
     pub fn add_constant(&self, value: Fp) {
         let mut state = self.state.borrow_mut();
@@ -80,6 +82,12 @@ impl ArithmeticCircuitBuilder {
         let mut state = self.state.borrow_mut();
         state.add_mul_gate(lhs, rhs)
     }
+
+    /// Add PROJ gate to a circuit.
+    pub fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
+        let mut state = self.state.borrow_mut();
+        state.add_proj_gate(x, tt)
+    }
 }
 
 /// Arithmetic circuit builder's internal state.
@@ -107,11 +115,7 @@ impl ArithBuilderState {
     }
 
     /// Add ADD gate to a circuit.
-    pub fn add_add_gate(
-        &mut self,
-        lhs: &ArithNode<Feed>,
-        rhs: &ArithNode<Feed>,
-    ) -> ArithNode<Feed> {
+    fn add_add_gate(&mut self, lhs: &ArithNode<Feed>, rhs: &ArithNode<Feed>) -> ArithNode<Feed> {
         let out = self.add_value();
         let gate = ArithGate::Add {
             x: lhs.into(),
@@ -125,7 +129,7 @@ impl ArithBuilderState {
     }
 
     /// Add CMUL gate to a circuit
-    pub fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: Fp) -> ArithNode<Feed> {
+    fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: Fp) -> ArithNode<Feed> {
         let out = self.add_value();
         let gate = ArithGate::Cmul {
             x: x.into(),
@@ -138,15 +142,11 @@ impl ArithBuilderState {
     }
 
     /// Add MUL gate to a circuit
-    pub fn add_mul_gate(
-        &mut self,
-        lhs: &ArithNode<Feed>,
-        rhs: &ArithNode<Feed>,
-    ) -> ArithNode<Feed> {
+    fn add_mul_gate(&mut self, x: &ArithNode<Feed>, y: &ArithNode<Feed>) -> ArithNode<Feed> {
         let out = self.add_value();
         let gate = ArithGate::Mul {
-            x: lhs.into(),
-            y: rhs.into(),
+            x: x.into(),
+            y: y.into(),
             z: out,
         };
         self.mul_count += 1;
@@ -156,8 +156,16 @@ impl ArithBuilderState {
     }
 
     /// Add PROJ gate to a circuit
-    pub fn add_proj_gate() {
-        todo!()
+    fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
+        let out = self.add_value();
+        let gate = ArithGate::Proj {
+            x: x.into(),
+            tt,
+            z: out,
+        };
+        self.proj_count += 1;
+        self.gates.push(gate);
+        out
     }
 
     /// Builds a circuit.
@@ -250,6 +258,4 @@ mod tests {
 
         assert!(check_circuit_equality(&circ, &expected));
     }
-
-    // TODO: test circuit with proj gate.
 }

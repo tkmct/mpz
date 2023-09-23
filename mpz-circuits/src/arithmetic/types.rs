@@ -78,43 +78,6 @@ impl From<&ArithNode<Sink>> for ArithNode<Feed> {
     }
 }
 
-// impl<T> ArithNode<T> {
-//     pub fn new(id: usize, modulus: u16) -> Self {
-//         ArithNode::<T> {
-//             id,
-//             modulus,
-//             _pd: PhantomData,
-//         }
-//     }
-// }
-
-/// A set of ArithNode.
-/// Representing conceptual "wire" in airthmetic circuit.
-/// Its inner representation is a set of wires. CRT wire can be expressed.
-/// This type is input to a gate.
-// #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-// #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-// pub struct ArithNodes<T>(Vec<ArithNode<T>>);
-//
-// impl<T> ArithNodes<T> {
-//     pub fn moduli(&self) -> Vec<u16> {
-//         self.0.iter().map(|node| node.modulus).collect()
-//     }
-// }
-//
-// impl<T> From<Vec<ArithNode<T>>> for ArithNodes<T> {
-//     fn from(item: Vec<ArithNode<T>>) -> Self {
-//         ArithNodes::<T>(item)
-//     }
-// }
-
-/// A set of ArithNode<Feed>.
-/// Representing conceptual "wire" in airthmetic circuit.
-/// Its inner representation is a set of wires. CRT wire can be expressed.
-// #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-// #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-// pub struct ArithRepr = ArithNodes<Feed>;
-
 /// Field value type.
 /// T must implement field operations
 /// Should we fix field size for now?

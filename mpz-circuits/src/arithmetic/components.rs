@@ -25,7 +25,12 @@ pub enum ArithGate {
         c: Fp,
         z: ArithNode<Feed>,
     },
-    // TODO: add PROJ gate
+    Proj {
+        x: ArithNode<Sink>,
+        // Truth table for input x.
+        tt: Vec<Fp>,
+        z: ArithNode<Feed>,
+    },
 }
 
 impl ArithGate {
@@ -35,6 +40,7 @@ impl ArithGate {
             ArithGate::Add { .. } => ArithGateType::Add,
             ArithGate::Mul { .. } => ArithGateType::Mul,
             ArithGate::Cmul { .. } => ArithGateType::Cmul,
+            ArithGate::Proj { .. } => ArithGateType::Proj,
         }
     }
 
@@ -44,6 +50,7 @@ impl ArithGate {
             ArithGate::Add { x, .. } => x,
             ArithGate::Mul { x, .. } => x,
             ArithGate::Cmul { x, .. } => x,
+            ArithGate::Proj { x, .. } => x,
         }
     }
 
@@ -54,6 +61,7 @@ impl ArithGate {
             ArithGate::Add { y, .. } => Some(y),
             ArithGate::Mul { y, .. } => Some(y),
             ArithGate::Cmul { .. } => None,
+            ArithGate::Proj { .. } => None,
         }
     }
 
@@ -63,6 +71,7 @@ impl ArithGate {
             ArithGate::Add { z, .. } => z,
             ArithGate::Mul { z, .. } => z,
             ArithGate::Cmul { z, .. } => z,
+            ArithGate::Proj { z, .. } => z,
         }
     }
 }
@@ -76,4 +85,6 @@ pub enum ArithGateType {
     Mul,
     /// Constant multiplication gate.
     Cmul,
+    /// Unary projection gate.
+    Proj,
 }

@@ -67,7 +67,7 @@ impl ArithmeticCircuit {
         self.proj_count
     }
 
-    /// Evaluate an arithmetic circuit with given input values.
+    /// Evaluate a plaintext arithmetic circuit with given plaintext input values.
     pub fn evaluate(&self, values: &[Fp]) -> Result<Vec<Fp>, CircuitError> {
         if values.len() != self.inputs.len() {
             return Err(CircuitError::InvalidInputCount(
@@ -101,8 +101,11 @@ impl ArithmeticCircuit {
 
                     // TODO: take mod p
                     feeds[z.id()] = Some(Fp(x.0 * y.0));
-                } // TODO:
-                  // ArithGate::Proj { x, y, z } => {}
+                }
+                ArithGate::Proj { x, tt, z } => {
+                    let x = feeds[x.id()].expect("Feed should be set");
+                    feeds[z.id()] = Some(tt[x.0 as usize]);
+                }
             }
         }
 
@@ -150,5 +153,22 @@ mod tests {
         let values = vec![Fp(3), Fp(5)];
         let res = circ.evaluate(&values).unwrap();
         assert_eq!(res, vec![Fp(24)]);
+    }
+
+    #[test]
+    fn test_evaluate_proj() {
+        let mut builder = ArithmeticCircuitBuilder::new();
+
+        let x = builder.add_input();
+        let tt: Vec<Fp> = vec![Fp(1), Fp(2), Fp(3)];
+
+        let out = builder.add_proj_gate(&x, tt);
+        builder.add_output(&out);
+
+        let circ = builder.build().unwrap();
+
+        let values = vec![Fp(2)];
+        let res = circ.evaluate(&values).unwrap();
+        assert_eq!(res, vec![Fp(3)]);
     }
 }
