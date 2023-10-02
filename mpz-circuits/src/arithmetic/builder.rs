@@ -7,6 +7,15 @@ use super::{
 use crate::{BuilderError, Feed};
 use std::cell::RefCell;
 
+/// An error that can occur while building arithmetic circuit.
+#[derive(Debug, thiserror::Error)]
+enum ArithBuilderError {
+    #[error("Moduli does not match: got {0} and {1}")]
+    UnequalModuli(u16, u16),
+}
+
+type BuilderResult<T> = Result<T, ArithBuilderError>;
+
 /// Arithmetic circuit builder.
 // FIXME: merge ArithmeticCircuitBuilder and its state.
 #[derive(Default)]
@@ -33,9 +42,9 @@ impl ArithmeticCircuitBuilder {
     }
 
     /// Add an input wire to circuit.
-    pub fn add_input(&self) -> ArithNode<Feed> {
+    pub fn add_input(&self, modulus: u16) -> ArithNode<Feed> {
         let mut state = self.state.borrow_mut();
-        let value = state.add_value();
+        let value = state.add_value(modulus);
         state.inputs.push(value);
 
         value
@@ -53,40 +62,6 @@ impl ArithmeticCircuitBuilder {
         let mut state = self.state.borrow_mut();
         state.constants.push(value);
         state.feed_id += 1;
-    }
-
-    /// Add ADD gate to a circuit.
-    pub fn add_add_gate(
-        &mut self,
-        lhs: &ArithNode<Feed>,
-        rhs: &ArithNode<Feed>,
-    ) -> ArithNode<Feed> {
-        let mut state = self.state.borrow_mut();
-        state.add_add_gate(lhs, rhs)
-    }
-
-    /// Add CMUL gate to a circuit.
-    /// Returns an output wire.
-    pub fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: Fp) -> ArithNode<Feed> {
-        // TODO: check if constant is already added to circuit.
-        let mut state = self.state.borrow_mut();
-        state.add_cmul_gate(x, c)
-    }
-
-    /// Add MUL gate to a circuit.
-    pub fn add_mul_gate(
-        &mut self,
-        lhs: &ArithNode<Feed>,
-        rhs: &ArithNode<Feed>,
-    ) -> ArithNode<Feed> {
-        let mut state = self.state.borrow_mut();
-        state.add_mul_gate(lhs, rhs)
-    }
-
-    /// Add PROJ gate to a circuit.
-    pub fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
-        let mut state = self.state.borrow_mut();
-        state.add_proj_gate(x, tt)
     }
 }
 
@@ -106,31 +81,40 @@ pub struct ArithBuilderState {
 }
 
 impl ArithBuilderState {
-    // TODO: make generic over arith node moduli
-    fn add_value(&mut self) -> ArithNode<Feed> {
-        let node = ArithNode::<Feed>::new_u32(self.feed_id);
+    fn add_value(&mut self, modulus: u16) -> ArithNode<Feed> {
+        let node = ArithNode::<Feed>::new(self.feed_id, modulus);
         self.feed_id += 1;
 
         node
     }
 
     /// Add ADD gate to a circuit.
-    fn add_add_gate(&mut self, lhs: &ArithNode<Feed>, rhs: &ArithNode<Feed>) -> ArithNode<Feed> {
-        let out = self.add_value();
+    fn add_add_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        y: &ArithNode<Feed>,
+    ) -> BuilderResult<ArithNode<Feed>> {
+        // check lhs and rhs has same modulus
+        if x.modulus() != y.modulus() {
+            return Err(ArithBuilderError::UnequalModuli(x.modulus(), y.modulus()));
+        }
+
+        let out = self.add_value(x.modulus());
+
         let gate = ArithGate::Add {
-            x: lhs.into(),
-            y: rhs.into(),
+            x: x.into(),
+            y: y.into(),
             z: out,
         };
         self.add_count += 1;
         self.gates.push(gate);
 
-        out
+        Ok(out)
     }
 
     /// Add CMUL gate to a circuit
     fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: Fp) -> ArithNode<Feed> {
-        let out = self.add_value();
+        let out = self.add_value(x.modulus());
         let gate = ArithGate::Cmul {
             x: x.into(),
             c,
@@ -142,8 +126,17 @@ impl ArithBuilderState {
     }
 
     /// Add MUL gate to a circuit
-    fn add_mul_gate(&mut self, x: &ArithNode<Feed>, y: &ArithNode<Feed>) -> ArithNode<Feed> {
-        let out = self.add_value();
+    fn add_mul_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        y: &ArithNode<Feed>,
+    ) -> BuilderResult<ArithNode<Feed>> {
+        // check lhs and rhs has same modulus
+        if x.modulus() != y.modulus() {
+            return Err(ArithBuilderError::UnequalModuli(x.modulus(), y.modulus()));
+        }
+
+        let out = self.add_value(x.modulus());
         let gate = ArithGate::Mul {
             x: x.into(),
             y: y.into(),
@@ -152,12 +145,18 @@ impl ArithBuilderState {
         self.mul_count += 1;
         self.gates.push(gate);
 
-        out
+        Ok(out)
     }
 
     /// Add PROJ gate to a circuit
-    fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
-        let out = self.add_value();
+    fn add_proj_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        tt: Vec<Fp>,
+    ) -> BuilderResult<ArithNode<Feed>> {
+        // check if the number of tt rows are equal to x's modulus
+
+        let out = self.add_value(x.modulus());
         let gate = ArithGate::Proj {
             x: x.into(),
             tt,
@@ -165,7 +164,7 @@ impl ArithBuilderState {
         };
         self.proj_count += 1;
         self.gates.push(gate);
-        out
+        Ok(out)
     }
 
     /// Builds a circuit.
@@ -209,14 +208,18 @@ mod tests {
     fn test_build_circuit() {
         // test simple circuit by hand.
         // calc: a*b + 3*a
-        let mut builder = ArithmeticCircuitBuilder::new();
+        let builder = ArithmeticCircuitBuilder::new();
 
         // add input x, y
-        let a = builder.add_input();
-        let b = builder.add_input();
-        let c = builder.add_mul_gate(&a, &b);
-        let d = builder.add_cmul_gate(&a, Fp(3));
-        let out = builder.add_add_gate(&c, &d);
+        let a = builder.add_input(3);
+        let b = builder.add_input(3);
+        let out = {
+            let mut state = builder.state().borrow_mut();
+            let c = state.add_mul_gate(&a, &b).unwrap();
+            let d = state.add_cmul_gate(&a, Fp(3));
+
+            state.add_add_gate(&c, &d).unwrap()
+        };
 
         builder.add_output(&out);
 
@@ -224,23 +227,26 @@ mod tests {
         assert!(result.is_ok());
         let circ = result.unwrap();
 
+        // modulus for this test.
+        let m = 3;
+
         // construct expected circuit by hand.
         let gate1 = ArithGate::Mul {
-            x: ArithNode::<Sink>::new_u32(0),
-            y: ArithNode::<Sink>::new_u32(1),
-            z: ArithNode::<Feed>::new_u32(2),
+            x: ArithNode::<Sink>::new(0, m),
+            y: ArithNode::<Sink>::new(1, m),
+            z: ArithNode::<Feed>::new(2, m),
         };
 
         let gate2 = ArithGate::Cmul {
-            x: ArithNode::<Sink>::new_u32(0),
+            x: ArithNode::<Sink>::new(0, m),
             c: Fp(3),
-            z: ArithNode::<Feed>::new_u32(3),
+            z: ArithNode::<Feed>::new(3, m),
         };
 
         let gate3 = ArithGate::Add {
-            x: ArithNode::<Sink>::new_u32(2),
-            y: ArithNode::<Sink>::new_u32(3),
-            z: ArithNode::<Feed>::new_u32(4),
+            x: ArithNode::<Sink>::new(2, m),
+            y: ArithNode::<Sink>::new(3, m),
+            z: ArithNode::<Feed>::new(4, m),
         };
 
         let expected = ArithmeticCircuit {

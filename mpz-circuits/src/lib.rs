@@ -13,7 +13,6 @@ mod parse;
 mod tracer;
 pub mod types;
 
-pub mod arithmetic;
 #[doc(hidden)]
 pub use builder::BuilderState;
 pub use builder::{BuilderError, CircuitBuilder};
@@ -22,6 +21,10 @@ pub use circuit::{Circuit, CircuitError};
 pub use components::{Feed, Node, Sink};
 pub use components::{Gate, GateType};
 pub use tracer::Tracer;
+
+pub mod arithmetic;
+pub use arithmetic::builder::ArithmeticCircuitBuilder;
+pub use arithmetic::circuit::ArithmeticCircuit;
 
 pub use once_cell;
 

@@ -59,6 +59,10 @@ mod evaluator;
 mod generator;
 pub mod msg;
 
+// TODO: fix by adding docs
+#[allow(missing_docs)]
+pub mod bmr16;
+
 pub use circuit::{EncryptedGate, GarbledCircuit};
 pub use encoding::{
     state as encoding_state, ChaChaEncoder, Decoding, Delta, Encode, EncodedValue, Encoder,
