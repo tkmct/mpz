@@ -1,6 +1,9 @@
 //! Definition of components used to construct arithmetic circuit.
 use super::types::{ArithNode, Fp};
-use crate::components::{Feed, Sink};
+use crate::{
+    arithmetic::utils::PRIMES,
+    components::{Feed, Sink},
+};
 
 /// An arithmetic gate.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,18 +90,3 @@ pub enum ArithGateType {
     /// Unary projection gate.
     Proj,
 }
-
-// TODO: make this generic over moduli array.
-// or, define macro to generate Crt type from moduli array.
-// CRT representation of a value in circuit.
-// pub struct CrtRepr<const N: usize>([u16; N]);
-//
-// impl<const N: usize> CrtRepr<N> {
-//     fn new() -> CrtRepr<N> {
-//         CrtRepr([])
-//     }
-//
-//     fn moduli() -> &[u16; N] {
-//         []
-//     }
-// }

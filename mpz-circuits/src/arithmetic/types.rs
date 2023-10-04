@@ -1,9 +1,9 @@
-use crate::{Feed, Sink};
 use std::marker::PhantomData;
 
-/// TODO: make these values generic over circuit struct or trait.
-/// Default crt moduli
-pub(crate) const CRT_MODULUI: [u16; 10] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29];
+use crate::{
+    arithmetic::utils::{NPRIMES, PRIMES},
+    {Feed, Sink},
+};
 
 /// A node in an arithmetic circuit.
 /// Node represent a single wire with specific modulus.
@@ -83,3 +83,62 @@ impl From<&ArithNode<Sink>> for ArithNode<Feed> {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Fp(pub u32);
+
+/// CRT representation of a field element in circuit.
+/// This bundles crt wires. each wire has modulus and unique id in a circuit.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct CrtRepr<const N: usize>([ArithNode<Feed>; N]);
+
+impl<const N: usize> CrtRepr<N> {
+    pub(crate) fn new(nodes: [ArithNode<Feed>; N]) -> CrtRepr<N> {
+        // check if N is less than NPRIMES
+        // There is unstable feature to do this compile time using generic_const_expr.
+        assert!(N <= NPRIMES, "Const N should be less than NPRIMES");
+        CrtRepr(nodes)
+    }
+
+    /// generate CrtRepr which takes N ids starting from given id.
+    /// eg. CrtRepr<5>::new_from_id(4) will generate CrtRepr with ArithNodes
+    /// having the following id and moduli pairs
+    /// [(2,4), (3,5), (5,6), (7,7), (11,8)]
+    pub(crate) fn new_from_id(id: usize) -> CrtRepr<N> {
+        let mut nodes = [ArithNode::<Feed>::new(0, 0); N];
+        for (i, p) in (0..N).zip(PRIMES) {
+            nodes[i] = ArithNode::<Feed>::new(id + i, p);
+        }
+
+        CrtRepr(nodes)
+    }
+
+    /// Returns the moduli array
+    pub(crate) fn moduli(&self) -> &[u16; N] {
+        // Unwrapping is safe because N is always less than NPRIMES.
+        TryFrom::try_from(&PRIMES[..N]).unwrap()
+    }
+
+    /// Returns the length of moduli array
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_crt_repr() {
+        let crt = CrtRepr::<5>::new_from_id(2);
+
+        let nodes: [ArithNode<Feed>; 5] = [
+            ArithNode::<Feed>::new(2, 2),
+            ArithNode::<Feed>::new(3, 3),
+            ArithNode::<Feed>::new(4, 5),
+            ArithNode::<Feed>::new(5, 7),
+            ArithNode::<Feed>::new(6, 11),
+        ];
+        let expected = CrtRepr(nodes);
+
+        assert_eq!(crt, expected);
+    }
+}
