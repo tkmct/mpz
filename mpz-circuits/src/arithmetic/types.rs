@@ -87,7 +87,7 @@ pub struct Fp(pub u32);
 /// CRT representation of a field element in circuit.
 /// This bundles crt wires. each wire has modulus and unique id in a circuit.
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) struct CrtRepr<const N: usize>([ArithNode<Feed>; N]);
+pub struct CrtRepr<const N: usize>([ArithNode<Feed>; N]);
 
 impl<const N: usize> CrtRepr<N> {
     pub(crate) fn new(nodes: [ArithNode<Feed>; N]) -> CrtRepr<N> {
