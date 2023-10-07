@@ -9,12 +9,14 @@ use std::cell::RefCell;
 
 /// An error that can occur while building arithmetic circuit.
 #[derive(Debug, thiserror::Error)]
-enum ArithBuilderError {
+pub enum ArithBuilderError {
+    /// Moduli are expected to be same but got unequal moduli
     #[error("Moduli does not match: got {0} and {1}")]
     UnequalModuli(u16, u16),
 }
 
-type BuilderResult<T> = Result<T, ArithBuilderError>;
+/// Result wrapper to wrap ArithBuilderError
+pub type BuilderResult<T> = Result<T, ArithBuilderError>;
 
 /// Arithmetic circuit builder.
 // FIXME: merge ArithmeticCircuitBuilder and its state.
@@ -68,7 +70,7 @@ impl ArithmeticCircuitBuilder {
 /// Arithmetic circuit builder's internal state.
 #[derive(Default)]
 pub struct ArithBuilderState {
-    feed_id: usize,
+    pub(crate) feed_id: usize,
     inputs: Vec<ArithNode<Feed>>,
     outputs: Vec<ArithNode<Feed>>,
     gates: Vec<ArithGate>,
@@ -81,7 +83,7 @@ pub struct ArithBuilderState {
 }
 
 impl ArithBuilderState {
-    fn add_value(&mut self, modulus: u16) -> ArithNode<Feed> {
+    pub(crate) fn add_value(&mut self, modulus: u16) -> ArithNode<Feed> {
         let node = ArithNode::<Feed>::new(self.feed_id, modulus);
         self.feed_id += 1;
 
@@ -89,7 +91,7 @@ impl ArithBuilderState {
     }
 
     /// Add ADD gate to a circuit.
-    fn add_add_gate(
+    pub(crate) fn add_add_gate(
         &mut self,
         x: &ArithNode<Feed>,
         y: &ArithNode<Feed>,
@@ -113,7 +115,7 @@ impl ArithBuilderState {
     }
 
     /// Add CMUL gate to a circuit
-    fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: Fp) -> ArithNode<Feed> {
+    pub(crate) fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: Fp) -> ArithNode<Feed> {
         let out = self.add_value(x.modulus());
         let gate = ArithGate::Cmul {
             x: x.into(),
@@ -126,7 +128,7 @@ impl ArithBuilderState {
     }
 
     /// Add MUL gate to a circuit
-    fn add_mul_gate(
+    pub(crate) fn add_mul_gate(
         &mut self,
         x: &ArithNode<Feed>,
         y: &ArithNode<Feed>,
@@ -149,7 +151,7 @@ impl ArithBuilderState {
     }
 
     /// Add PROJ gate to a circuit
-    fn add_proj_gate(
+    pub(crate) fn add_proj_gate(
         &mut self,
         x: &ArithNode<Feed>,
         tt: Vec<Fp>,
@@ -168,7 +170,7 @@ impl ArithBuilderState {
     }
 
     /// Builds a circuit.
-    pub fn build(self) -> Result<ArithmeticCircuit, BuilderError> {
+    pub(crate) fn build(self) -> Result<ArithmeticCircuit, BuilderError> {
         Ok(ArithmeticCircuit {
             inputs: self.inputs,
             outputs: self.outputs,

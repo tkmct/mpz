@@ -134,7 +134,7 @@ impl IntoIterator for ArithmeticCircuit {
 mod tests {
     use super::*;
     use crate::arithmetic::builder::ArithmeticCircuitBuilder;
-    // TODO: should test on circuit having CRTRepr
+    // TODO: should test on circuit having CrtRepr
 
     // #[test]
     // fn test_evaluate() {

@@ -110,6 +110,10 @@ impl<const N: usize> CrtRepr<N> {
         CrtRepr(nodes)
     }
 
+    pub(crate) fn nodes(&self) -> [ArithNode<Feed>; N] {
+        self.0
+    }
+
     /// Returns the moduli array
     pub(crate) fn moduli(&self) -> &[u16; N] {
         // Unwrapping is safe because N is always less than NPRIMES.
