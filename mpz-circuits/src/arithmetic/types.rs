@@ -101,6 +101,7 @@ impl<const N: usize> CrtRepr<N> {
     /// eg. CrtRepr<5>::new_from_id(4) will generate CrtRepr with ArithNodes
     /// having the following id and moduli pairs
     /// [(2,4), (3,5), (5,6), (7,7), (11,8)]
+    #[allow(dead_code)]
     pub(crate) fn new_from_id(id: usize) -> CrtRepr<N> {
         let mut nodes = [ArithNode::<Feed>::new(0, 0); N];
         for (i, p) in (0..N).zip(PRIMES) {
@@ -115,12 +116,14 @@ impl<const N: usize> CrtRepr<N> {
     }
 
     /// Returns the moduli array
+    #[allow(dead_code)]
     pub(crate) fn moduli(&self) -> &[u16; N] {
         // Unwrapping is safe because N is always less than NPRIMES.
         TryFrom::try_from(&PRIMES[..N]).unwrap()
     }
 
     /// Returns the length of moduli array
+    #[allow(dead_code)]
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }

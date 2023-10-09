@@ -12,7 +12,6 @@ pub struct ArithmeticCircuit {
     pub(crate) inputs: Vec<ArithNode<Feed>>,
     pub(crate) outputs: Vec<ArithNode<Feed>>,
     pub(crate) gates: Vec<ArithGate>,
-    pub(crate) constants: Vec<Fp>,
     pub(crate) feed_count: usize,
 
     pub(crate) add_count: usize,
@@ -35,11 +34,6 @@ impl ArithmeticCircuit {
     /// Returns a reference to the gates of the circuit.
     pub fn gates(&self) -> &[ArithGate] {
         &self.gates
-    }
-
-    /// Returns a reference to the constans used in the circuit.
-    pub fn constants(&self) -> &[Fp] {
-        &self.constants
     }
 
     /// Returns the number of feeds in the circuit.

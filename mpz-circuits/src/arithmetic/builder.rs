@@ -1,11 +1,14 @@
 //! Arithmetic circuit builder module.
+use std::cell::RefCell;
+
+use crate::{BuilderError, Feed};
+
 use super::{
     circuit::ArithmeticCircuit,
     components::ArithGate,
-    types::{ArithNode, Fp},
+    types::{ArithNode, CrtRepr, Fp},
+    utils::PRIMES,
 };
-use crate::{BuilderError, Feed};
-use std::cell::RefCell;
 
 /// An error that can occur while building arithmetic circuit.
 #[derive(Debug, thiserror::Error)]
@@ -58,12 +61,12 @@ impl ArithmeticCircuitBuilder {
         state.outputs.push(*value);
     }
 
-    // FIXME: not needed?
-    /// Add a constant wire to circuit.
-    pub fn add_constant(&self, value: Fp) {
+    /// Add CRT repr input to a circuit
+    pub fn add_crt_input<const N: usize>(&mut self) -> CrtRepr<N> {
         let mut state = self.state.borrow_mut();
-        state.constants.push(value);
-        state.feed_id += 1;
+        let nodes: [ArithNode<Feed>; N] = std::array::from_fn(|i| state.add_value(PRIMES[i]));
+
+        CrtRepr::<N>::new(nodes)
     }
 }
 
@@ -74,7 +77,6 @@ pub struct ArithBuilderState {
     inputs: Vec<ArithNode<Feed>>,
     outputs: Vec<ArithNode<Feed>>,
     gates: Vec<ArithGate>,
-    constants: Vec<Fp>,
 
     add_count: usize,
     mul_count: usize,
@@ -151,6 +153,7 @@ impl ArithBuilderState {
     }
 
     /// Add PROJ gate to a circuit
+    #[allow(dead_code)]
     pub(crate) fn add_proj_gate(
         &mut self,
         x: &ArithNode<Feed>,
@@ -175,7 +178,6 @@ impl ArithBuilderState {
             inputs: self.inputs,
             outputs: self.outputs,
             gates: self.gates,
-            constants: self.constants,
             feed_count: self.feed_id,
             add_count: self.add_count,
             cmul_count: self.cmul_count,
@@ -188,8 +190,10 @@ impl ArithBuilderState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arithmetic::{circuit::ArithmeticCircuit, components::ArithGate};
-    use crate::{Feed, Sink};
+    use crate::{
+        arithmetic::{circuit::ArithmeticCircuit, components::ArithGate},
+        Feed, Sink,
+    };
 
     // test if given circuit are same.
     fn check_circuit_equality(circ: &ArithmeticCircuit, other: &ArithmeticCircuit) -> bool {
@@ -255,7 +259,6 @@ mod tests {
             inputs: vec![a, b],
             outputs: vec![out],
             gates: vec![gate1, gate2, gate3],
-            constants: vec![],
 
             feed_count: 5,
             add_count: 1,
