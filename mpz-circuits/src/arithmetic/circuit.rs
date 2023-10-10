@@ -1,10 +1,22 @@
 //! Arithmetic Circuit module.
-use crate::{CircuitError, Feed};
+use crate::Feed;
 
 use super::{
     components::ArithGate,
     types::{ArithNode, Fp},
 };
+
+/// An error that occur when evaluating a circuit.
+#[derive(Debug, thiserror::Error, PartialEq)]
+#[allow(missing_docs)]
+pub enum ArithCircuitError {
+    #[error("input feed expected value modulo {0} but got {1}")]
+    InvalidInputMod(u16, u32),
+    #[error("Invalid number of inputs: expected {0}, got {1}")]
+    InvalidInputCount(usize, usize),
+    #[error("Invalid number of outputs: expected {0}, got {1}")]
+    InvalidOutputCount(usize, usize),
+}
 
 /// Arithmetic Circuit.
 #[derive(Debug, Clone)]
@@ -62,9 +74,9 @@ impl ArithmeticCircuit {
     }
 
     /// Evaluate a plaintext arithmetic circuit with given plaintext input values.
-    pub fn evaluate(&self, values: &[Fp]) -> Result<Vec<Fp>, CircuitError> {
+    pub fn evaluate(&self, values: &[Fp]) -> Result<Vec<Fp>, ArithCircuitError> {
         if values.len() != self.inputs.len() {
-            return Err(CircuitError::InvalidInputCount(
+            return Err(ArithCircuitError::InvalidInputCount(
                 self.inputs.len(),
                 values.len(),
             ));
@@ -73,28 +85,33 @@ impl ArithmeticCircuit {
         let mut feeds: Vec<Option<Fp>> = vec![None; self.feed_count()];
 
         for (input, value) in self.inputs.iter().zip(values) {
+            // check if input values are within mod of Node
+            if input.modulus() as u32 <= value.0 {
+                return Err(ArithCircuitError::InvalidInputMod(input.modulus(), value.0));
+            }
             feeds[input.id()] = Some(*value);
         }
 
         for gate in self.gates.iter() {
+            // TODO: not cast directly. how to handle correctly?
+            let m = gate.x().modulus() as u32;
             match gate {
                 ArithGate::Add { x, y, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
                     let y = feeds[y.id()].expect("Feed should be set");
 
-                    feeds[z.id()] = Some(Fp(x.0 + y.0));
+                    feeds[z.id()] = Some(Fp((x.0 + y.0) % m));
                 }
                 ArithGate::Cmul { x, c, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
 
-                    feeds[z.id()] = Some(Fp(x.0 * c.0));
+                    feeds[z.id()] = Some(Fp(x.0 * c.0 % m));
                 }
                 ArithGate::Mul { x, y, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
                     let y = feeds[y.id()].expect("Feed should be set");
 
-                    // TODO: take mod p
-                    feeds[z.id()] = Some(Fp(x.0 * y.0));
+                    feeds[z.id()] = Some(Fp(x.0 * y.0 % m));
                 }
                 ArithGate::Proj { x, tt, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
@@ -127,43 +144,67 @@ impl IntoIterator for ArithmeticCircuit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arithmetic::builder::ArithmeticCircuitBuilder;
-    // TODO: should test on circuit having CrtRepr
+    use crate::arithmetic::{
+        builder::ArithmeticCircuitBuilder,
+        ops::{add, cmul, mul},
+    };
 
-    // #[test]
-    // fn test_evaluate() {
-    //     // calc: a*b + 3*a
-    //     let mut builder = ArithmeticCircuitBuilder::new();
-    //
-    //     let a = builder.add_input();
-    //     let b = builder.add_input();
-    //     let c = builder.add_mul_gate(&a, &b);
-    //     let d = builder.add_cmul_gate(&a, Fp(3));
-    //     let out = builder.add_add_gate(&c, &d);
-    //
-    //     builder.add_output(&out);
-    //
-    //     let circ = builder.build().unwrap();
-    //
-    //     let values = vec![Fp(3), Fp(5)];
-    //     let res = circ.evaluate(&values).unwrap();
-    //     assert_eq!(res, vec![Fp(24)]);
-    // }
+    #[test]
+    fn test_evaluate() {
+        // calc: a*b + 3*a
+        let mut builder = ArithmeticCircuitBuilder::new();
 
-    // #[test]
-    // fn test_evaluate_proj() {
-    //     let mut builder = ArithmeticCircuitBuilder::new();
-    //
-    //     let x = builder.add_input();
-    //     let tt: Vec<Fp> = vec![Fp(1), Fp(2), Fp(3)];
-    //
-    //     let out = builder.add_proj_gate(&x, tt);
-    //     builder.add_output(&out);
-    //
-    //     let circ = builder.build().unwrap();
-    //
-    //     let values = vec![Fp(2)];
-    //     let res = circ.evaluate(&values).unwrap();
-    //     assert_eq!(res, vec![Fp(3)]);
-    // }
+        let a = builder.add_crt_input::<3>();
+        let b = builder.add_crt_input::<3>();
+        let out;
+        // FIXME: how to do it more elegantly?
+        {
+            let mut state = builder.state().borrow_mut();
+            let c = mul(&mut state, &a, &b);
+            let d = cmul(&mut state, &a, Fp(3));
+            out = add(&mut state, &c, &d);
+        }
+
+        builder.add_crt_output(&out);
+        let circ = builder.build().unwrap();
+
+        // values have to be CRT represented value.
+        // 3, 5
+        let values = vec![Fp(1), Fp(0), Fp(3), Fp(1), Fp(2), Fp(0)];
+        let res = circ.evaluate(&values).unwrap();
+        // Returns 24 in Crt repr
+        assert_eq!(res, vec![Fp(0), Fp(0), Fp(4)]);
+    }
+
+    #[test]
+    fn test_evaluate_proj() {
+        let mut builder = ArithmeticCircuitBuilder::new();
+
+        let x = builder.add_input(2);
+        let tt: Vec<Fp> = vec![Fp(1), Fp(2)];
+        let out = builder.add_proj_gate(&x, tt);
+        builder.add_output(&out);
+
+        let circ = builder.build().unwrap();
+
+        let values = vec![Fp(0)];
+        let res = circ.evaluate(&values).unwrap();
+        assert_eq!(res, vec![Fp(1)]);
+    }
+
+    // check if value is greater than mod specified by value
+    #[test]
+    fn test_input_value_exceed_mod() {
+        let mut builder = ArithmeticCircuitBuilder::new();
+        let x = builder.add_input(2);
+        let y = builder.add_input(2);
+
+        let out = builder.add_add_gate(&x, &y).unwrap();
+        builder.add_output(&out);
+
+        let circ = builder.build().unwrap();
+        let values = vec![Fp(0), Fp(2)];
+        let res = circ.evaluate(&values);
+        assert_eq!(res, Err(ArithCircuitError::InvalidInputMod(2, 2)));
+    }
 }

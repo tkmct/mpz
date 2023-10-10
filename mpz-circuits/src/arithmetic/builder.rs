@@ -64,9 +64,37 @@ impl ArithmeticCircuitBuilder {
     /// Add CRT repr input to a circuit
     pub fn add_crt_input<const N: usize>(&mut self) -> CrtRepr<N> {
         let mut state = self.state.borrow_mut();
-        let nodes: [ArithNode<Feed>; N] = std::array::from_fn(|i| state.add_value(PRIMES[i]));
+        let nodes: [ArithNode<Feed>; N] = std::array::from_fn(|i| {
+            let node = state.add_value(PRIMES[i]);
+            state.inputs.push(node);
+            node
+        });
 
         CrtRepr::<N>::new(nodes)
+    }
+
+    /// Add CRT repr output to a circuit
+    pub fn add_crt_output<const N: usize>(&mut self, output: &CrtRepr<N>) {
+        let mut state = self.state.borrow_mut();
+        output.nodes().iter().for_each(|n| state.outputs.push(*n));
+    }
+
+    /// Add proj gate
+    // TODO: maybe we don't need builder state. just put everything under builder
+    // TODO: should return Result?
+    pub fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
+        let mut state = self.state.borrow_mut();
+        state.add_proj_gate(x, tt)
+    }
+
+    /// Add add gate wrapper
+    pub fn add_add_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        y: &ArithNode<Feed>,
+    ) -> BuilderResult<ArithNode<Feed>> {
+        let mut state = self.state.borrow_mut();
+        state.add_add_gate(x, y)
     }
 }
 
@@ -154,11 +182,7 @@ impl ArithBuilderState {
 
     /// Add PROJ gate to a circuit
     #[allow(dead_code)]
-    pub(crate) fn add_proj_gate(
-        &mut self,
-        x: &ArithNode<Feed>,
-        tt: Vec<Fp>,
-    ) -> BuilderResult<ArithNode<Feed>> {
+    pub(crate) fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
         // check if the number of tt rows are equal to x's modulus
 
         let out = self.add_value(x.modulus());
@@ -169,7 +193,7 @@ impl ArithBuilderState {
         };
         self.proj_count += 1;
         self.gates.push(gate);
-        Ok(out)
+        out
     }
 
     /// Builds a circuit.
