@@ -1,7 +1,8 @@
 //! Definition of components used to construct arithmetic circuit.
-use crate::components::{Feed, Sink};
-
-use super::types::{ArithNode, Fp};
+use crate::{
+    arithmetic::types::{ArithNode, Fp},
+    components::{Feed, Sink},
+};
 
 /// An arithmetic gate.
 #[derive(Debug, Clone, PartialEq, Eq)]

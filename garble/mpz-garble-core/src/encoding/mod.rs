@@ -17,6 +17,8 @@ mod equality;
 mod ops;
 mod value;
 
+mod crt;
+
 use std::{
     ops::{BitXor, Deref, Index},
     sync::Arc,
@@ -26,6 +28,7 @@ use mpz_core::Block;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Deserializer, Serialize};
 
+pub use crt::{state as crt_encoded_state, EncodedCrtValue, Labels as CrtLabels};
 pub use encoder::{ChaChaEncoder, Encoder};
 pub use equality::EqualityCheck;
 pub use value::{Decoding, Encode, EncodedValue, EncodingCommitment, ValueError};

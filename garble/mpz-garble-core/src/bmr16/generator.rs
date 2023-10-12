@@ -1,8 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
+use blake3::Hasher;
+
 use crate::{
     circuit::EncryptedGate,
-    encoding::{Delta, Label, Labels},
+    encoding::{crt_encoded_state, CrtLabels, Delta, EncodedCrtValue, Label},
 };
 
 use mpz_circuits::{arithmetic::components::ArithGate, ArithmeticCircuit};
@@ -11,7 +13,7 @@ use mpz_core::{
     Block,
 };
 
-pub struct BMR16Generator {
+pub struct BMR16Generator<const N: usize> {
     // TODO: make this generic?
     cipher: &'static FixedKeyAes,
     /// Circuit to genrate a garbled circuit for
@@ -19,17 +21,30 @@ pub struct BMR16Generator {
     /// Delta values to use while generating the circuit
     deltas: HashMap<u16, Delta>,
     /// The 0 value labels for the garbled circuit
-    // FIXME: how to represent set of labels for each node?
     low_labels: Vec<Option<Label>>,
     /// Current position in the circuit
     pos: usize,
+    /// Current gate id
+    gid: usize,
+    /// Hasher to use to hash the encrypted gates
+    hasher: Option<Hasher>,
 }
 
-impl BMR16Generator {
-    // NOTE: encoding of the labels are done outside.
-    pub fn new(circ: Arc<ArithmeticCircuit>, deltas: HashMap<u16, Delta>) -> Self {
-        // TODO: fix this
-        let low_labels = vec![];
+impl<const N: usize> BMR16Generator<N> {
+    // NOTE: encoding of the input labels are done outside.
+    pub fn new(
+        circ: Arc<ArithmeticCircuit>,
+        deltas: HashMap<u16, Delta>,
+        inputs: Vec<EncodedCrtValue<N, crt_encoded_state::Full>>,
+    ) -> Self {
+        let hasher = Some(Hasher::new());
+
+        let low_labels = vec![None; circ.feed_count()];
+        for (encoded, input) in inputs.iter().zip(circ.inputs()) {
+            // for (label, node) in encoded.iter().zip(input.iter()) {
+            //     low_labels[node.id()] = Some(*label)
+            // }
+        }
 
         BMR16Generator {
             cipher: &(FIXED_KEY_AES),
@@ -37,11 +52,13 @@ impl BMR16Generator {
             deltas,
             low_labels,
             pos: 0,
+            gid: 1,
+            hasher,
         }
     }
 }
 
-impl Iterator for BMR16Generator {
+impl<const N: usize> Iterator for BMR16Generator<N> {
     // FIXME: encryted gate for arithmetic gate depends on the number of wire
     // How to represent set of wires?
     type Item = EncryptedGate;

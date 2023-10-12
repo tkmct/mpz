@@ -3,39 +3,92 @@ use crate::Feed;
 
 use crate::arithmetic::{
     builder::ArithBuilderState,
-    types::{ArithNode, CrtRepr, Fp},
+    circuit::ArithCircuitError,
+    types::{ArithNode, CrtRepr, Fp, TypeError},
+    utils::is_same_crt_len,
 };
 
-/// Add two crt values.
-pub fn add<const N: usize>(
-    state: &mut ArithBuilderState,
-    x: &CrtRepr<N>,
-    y: &CrtRepr<N>,
-) -> CrtRepr<N> {
-    let nodes: [ArithNode<Feed>; N] =
-        std::array::from_fn(|i| state.add_add_gate(&x.nodes()[i], &y.nodes()[i]).unwrap());
+use super::types::CrtValue;
 
-    CrtRepr::new(nodes)
+/// Add two crt values.
+/// Add gates for each ArithNode and returns new CrtRepr
+pub fn add(
+    state: &mut ArithBuilderState,
+    x: &CrtRepr,
+    y: &CrtRepr,
+) -> Result<CrtRepr, ArithCircuitError> {
+    if !is_same_crt_len(x, y) {
+        return Err(TypeError::UnequalLength(x.len(), y.len()).into());
+    }
+
+    let repr = match (x, y) {
+        (CrtRepr::Bool(xval), CrtRepr::Bool(yval)) => {
+            let z = state.add_add_gate(&xval.nodes()[0], &yval.nodes()[0])?;
+            CrtRepr::Bool(CrtValue::<1>::new([z]))
+        }
+        (CrtRepr::U32(xval), CrtRepr::U32(yval)) => {
+            let zval: [ArithNode<Feed>; 10] = std::array::from_fn(|i| {
+                state
+                    .add_add_gate(&xval.nodes()[i], &yval.nodes()[i])
+                    .unwrap() // TODO: handle error correctly!
+            });
+            CrtRepr::U32(CrtValue::<10>::new(zval))
+        }
+        _ => {
+            // This should not happen
+            return Err(TypeError::UnequalLength(x.len(), y.len()).into());
+        }
+    };
+
+    Ok(repr)
 }
 
 /// Multiply two crt values.
-pub fn mul<const N: usize>(
+/// Multiply gates for each ArithNode and returns new CrtRepr
+pub fn mul(
     state: &mut ArithBuilderState,
-    x: &CrtRepr<N>,
-    y: &CrtRepr<N>,
-) -> CrtRepr<N> {
-    let nodes: [ArithNode<Feed>; N] =
-        std::array::from_fn(|i| state.add_mul_gate(&x.nodes()[i], &y.nodes()[i]).unwrap());
+    x: &CrtRepr,
+    y: &CrtRepr,
+) -> Result<CrtRepr, ArithCircuitError> {
+    if !is_same_crt_len(x, y) {
+        return Err(TypeError::UnequalLength(x.len(), y.len()).into());
+    }
 
-    CrtRepr::new(nodes)
+    let repr = match (x, y) {
+        (CrtRepr::Bool(xval), CrtRepr::Bool(yval)) => {
+            let z = state.add_mul_gate(&xval.nodes()[0], &yval.nodes()[0])?;
+            CrtRepr::Bool(CrtValue::<1>::new([z]))
+        }
+        (CrtRepr::U32(xval), CrtRepr::U32(yval)) => {
+            let zval: [ArithNode<Feed>; 10] = std::array::from_fn(|i| {
+                state
+                    .add_mul_gate(&xval.nodes()[i], &yval.nodes()[i])
+                    .unwrap() // TODO: handle error correctly!
+            });
+            CrtRepr::U32(CrtValue::<10>::new(zval))
+        }
+        _ => {
+            // This should not happen
+            return Err(TypeError::UnequalLength(x.len(), y.len()).into());
+        }
+    };
+
+    Ok(repr)
 }
 
 /// Multiply crt value by constant value.
-pub fn cmul<const N: usize>(state: &mut ArithBuilderState, x: &CrtRepr<N>, c: Fp) -> CrtRepr<N> {
-    let nodes: [ArithNode<Feed>; N] =
-        std::array::from_fn(|i| state.add_cmul_gate(&x.nodes()[i], c));
-
-    CrtRepr::new(nodes)
+pub fn cmul(state: &mut ArithBuilderState, x: &CrtRepr, c: Fp) -> CrtRepr {
+    match x {
+        CrtRepr::Bool(xval) => {
+            let z = state.add_cmul_gate(&xval.nodes()[0], c);
+            CrtRepr::Bool(CrtValue::<1>::new([z]))
+        }
+        CrtRepr::U32(xval) => {
+            let zval: [ArithNode<Feed>; 10] =
+                std::array::from_fn(|i| state.add_cmul_gate(&xval.nodes()[i], c));
+            CrtRepr::U32(CrtValue::<10>::new(zval))
+        }
+    }
 }
 
 // TODO: add a good way to add projection gate to circuit
@@ -56,28 +109,24 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let mut builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_crt_input::<5>();
-        let y = builder.add_crt_input::<5>();
+        let builder = ArithmeticCircuitBuilder::default();
+        let x = builder.add_input::<u32>().unwrap();
+        let y = builder.add_input::<u32>().unwrap();
 
-        let z = add(&mut builder.state().borrow_mut(), &x, &y);
+        let z = add(&mut builder.state().borrow_mut(), &x, &y).unwrap();
 
         let circ = builder.build().unwrap();
 
         // check z has correct CrtRepr
         assert_eq!(
             z,
-            CrtRepr::new([
-                ArithNode::<Feed>::new(10, 2),
-                ArithNode::<Feed>::new(11, 3),
-                ArithNode::<Feed>::new(12, 5),
-                ArithNode::<Feed>::new(13, 7),
-                ArithNode::<Feed>::new(14, 11),
-            ])
+            CrtRepr::U32(CrtValue::new(std::array::from_fn(|i| {
+                ArithNode::<Feed>::new(20 + i, PRIMES[i])
+            })))
         );
 
-        assert_eq!(circ.feed_count(), 15);
-        assert_eq!(circ.add_count(), 5);
+        assert_eq!(circ.feed_count(), 30);
+        assert_eq!(circ.add_count(), 10);
 
         // check if appropriate gates are added to state.
         let gates = circ.gates();
@@ -86,8 +135,8 @@ mod tests {
                 *gate,
                 ArithGate::Add {
                     x: ArithNode::<Sink>::new(i, p),
-                    y: ArithNode::<Sink>::new(i + 5, p),
-                    z: ArithNode::<Feed>::new(i + 10, p),
+                    y: ArithNode::<Sink>::new(i + 10, p),
+                    z: ArithNode::<Feed>::new(i + 20, p),
                 }
             );
         }
@@ -95,28 +144,25 @@ mod tests {
 
     #[test]
     fn test_mul() {
-        let mut builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_crt_input::<5>();
-        let y = builder.add_crt_input::<5>();
+        let builder = ArithmeticCircuitBuilder::default();
+        let x = builder.add_input::<u32>().unwrap();
+        let y = builder.add_input::<u32>().unwrap();
 
-        let z = mul(&mut builder.state().borrow_mut(), &x, &y);
+        let z = mul(&mut builder.state().borrow_mut(), &x, &y).unwrap();
 
         let circ = builder.build().unwrap();
 
         // check z has correct CrtRepr
+        //
         assert_eq!(
             z,
-            CrtRepr::new([
-                ArithNode::<Feed>::new(10, 2),
-                ArithNode::<Feed>::new(11, 3),
-                ArithNode::<Feed>::new(12, 5),
-                ArithNode::<Feed>::new(13, 7),
-                ArithNode::<Feed>::new(14, 11),
-            ])
+            CrtRepr::U32(CrtValue::new(std::array::from_fn(|i| {
+                ArithNode::<Feed>::new(20 + i, PRIMES[i])
+            })))
         );
 
-        assert_eq!(circ.feed_count(), 15);
-        assert_eq!(circ.mul_count(), 5);
+        assert_eq!(circ.feed_count(), 30);
+        assert_eq!(circ.mul_count(), 10);
 
         // check if appropriate gates are added to state.
         let gates = circ.gates();
@@ -125,8 +171,8 @@ mod tests {
                 *gate,
                 ArithGate::Mul {
                     x: ArithNode::<Sink>::new(i, p),
-                    y: ArithNode::<Sink>::new(i + 5, p),
-                    z: ArithNode::<Feed>::new(i + 10, p),
+                    y: ArithNode::<Sink>::new(i + 10, p),
+                    z: ArithNode::<Feed>::new(i + 20, p),
                 }
             );
         }
@@ -134,8 +180,8 @@ mod tests {
 
     #[test]
     fn test_cmul() {
-        let mut builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_crt_input::<5>();
+        let builder = ArithmeticCircuitBuilder::default();
+        let x = builder.add_input::<u32>().unwrap();
         let c = Fp(5);
 
         let z = cmul(&mut builder.state().borrow_mut(), &x, c);
@@ -145,17 +191,13 @@ mod tests {
         // check z has correct CrtRepr
         assert_eq!(
             z,
-            CrtRepr::new([
-                ArithNode::<Feed>::new(5, 2),
-                ArithNode::<Feed>::new(6, 3),
-                ArithNode::<Feed>::new(7, 5),
-                ArithNode::<Feed>::new(8, 7),
-                ArithNode::<Feed>::new(9, 11),
-            ])
+            CrtRepr::U32(CrtValue::new(std::array::from_fn(|i| {
+                ArithNode::<Feed>::new(10 + i, PRIMES[i])
+            })))
         );
 
-        assert_eq!(circ.feed_count(), 10);
-        assert_eq!(circ.cmul_count(), 5);
+        assert_eq!(circ.feed_count(), 20);
+        assert_eq!(circ.cmul_count(), 10);
 
         // check if appropriate gates are added to state.
         let gates = circ.gates();
@@ -165,7 +207,7 @@ mod tests {
                 ArithGate::Cmul {
                     x: ArithNode::<Sink>::new(i, p),
                     c,
-                    z: ArithNode::<Feed>::new(i + 5, p),
+                    z: ArithNode::<Feed>::new(i + 10, p),
                 }
             );
         }

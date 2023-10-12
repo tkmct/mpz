@@ -1,9 +1,8 @@
 //! Arithmetic Circuit module.
-use crate::Feed;
-
-use super::{
+use crate::arithmetic::{
     components::ArithGate,
-    types::{ArithNode, Fp},
+    types::{CrtRepr, Fp, TypeError},
+    utils::{convert_crts_to_values, convert_values_to_crts},
 };
 
 /// An error that occur when evaluating a circuit.
@@ -16,13 +15,19 @@ pub enum ArithCircuitError {
     InvalidInputCount(usize, usize),
     #[error("Invalid number of outputs: expected {0}, got {1}")]
     InvalidOutputCount(usize, usize),
+    #[error("Moduli does not match: got {0} and {1}")]
+    UnequalModuli(u16, u16),
+
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
 }
 
 /// Arithmetic Circuit.
+/// Which handles N wire crt representation.
 #[derive(Debug, Clone)]
 pub struct ArithmeticCircuit {
-    pub(crate) inputs: Vec<ArithNode<Feed>>,
-    pub(crate) outputs: Vec<ArithNode<Feed>>,
+    pub(crate) inputs: Vec<CrtRepr>,
+    pub(crate) outputs: Vec<CrtRepr>,
     pub(crate) gates: Vec<ArithGate>,
     pub(crate) feed_count: usize,
 
@@ -34,12 +39,12 @@ pub struct ArithmeticCircuit {
 
 impl ArithmeticCircuit {
     /// Returns a reference to the inputs of the circuit.
-    pub fn inputs(&self) -> &[ArithNode<Feed>] {
+    pub fn inputs(&self) -> &[CrtRepr] {
         &self.inputs
     }
 
     /// Returns a reference to the outputs of the circuit.
-    pub fn outputs(&self) -> &[ArithNode<Feed>] {
+    pub fn outputs(&self) -> &[CrtRepr] {
         &self.outputs
     }
 
@@ -84,12 +89,12 @@ impl ArithmeticCircuit {
 
         let mut feeds: Vec<Option<Fp>> = vec![None; self.feed_count()];
 
-        for (input, value) in self.inputs.iter().zip(values) {
-            // check if input values are within mod of Node
-            if input.modulus() as u32 <= value.0 {
-                return Err(ArithCircuitError::InvalidInputMod(input.modulus(), value.0));
+        // Convert value to crt representation and add inputs in feeds.
+        let actual_values = convert_values_to_crts(self.inputs(), values)?;
+        for (repr, val) in self.inputs().iter().zip(actual_values.iter()) {
+            for (i, feed) in repr.iter().enumerate() {
+                feeds[feed.id()] = Some(val[i]);
             }
-            feeds[input.id()] = Some(*value);
         }
 
         for gate in self.gates.iter() {
@@ -120,14 +125,7 @@ impl ArithmeticCircuit {
             }
         }
 
-        // collect output
-        let outputs = self
-            .outputs
-            .iter()
-            .cloned()
-            .map(|out| feeds[out.id()].expect("Feed should be set"))
-            .collect();
-
+        let outputs = convert_crts_to_values(self.outputs(), &feeds)?;
         Ok(outputs)
     }
 }
@@ -144,67 +142,51 @@ impl IntoIterator for ArithmeticCircuit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arithmetic::{
-        builder::ArithmeticCircuitBuilder,
-        ops::{add, cmul, mul},
-    };
+    use crate::arithmetic::{builder::ArithmeticCircuitBuilder, ops::*};
 
     #[test]
     fn test_evaluate() {
         // calc: a*b + 3*a
-        let mut builder = ArithmeticCircuitBuilder::new();
+        let builder = ArithmeticCircuitBuilder::new();
 
-        let a = builder.add_crt_input::<3>();
-        let b = builder.add_crt_input::<3>();
+        let a = builder.add_input::<u32>().unwrap();
+        let b = builder.add_input::<u32>().unwrap();
         let out;
         // FIXME: how to do it more elegantly?
         {
             let mut state = builder.state().borrow_mut();
-            let c = mul(&mut state, &a, &b);
+            let c = mul(&mut state, &a, &b).unwrap();
             let d = cmul(&mut state, &a, Fp(3));
-            out = add(&mut state, &c, &d);
+            out = add(&mut state, &c, &d).unwrap();
         }
 
-        builder.add_crt_output(&out);
+        builder.add_output(&out);
         let circ = builder.build().unwrap();
 
         // values have to be CRT represented value.
         // 3, 5
-        let values = vec![Fp(1), Fp(0), Fp(3), Fp(1), Fp(2), Fp(0)];
+        // let values = vec![Fp(1), Fp(0), Fp(3), Fp(1), Fp(2), Fp(0)];
+        let values = vec![Fp(3), Fp(5)];
+
         let res = circ.evaluate(&values).unwrap();
         // Returns 24 in Crt repr
-        assert_eq!(res, vec![Fp(0), Fp(0), Fp(4)]);
+        // assert_eq!(res, vec![Fp(0), Fp(0), Fp(4)]);
+        assert_eq!(res, vec![Fp(24)]);
     }
 
-    #[test]
-    fn test_evaluate_proj() {
-        let mut builder = ArithmeticCircuitBuilder::new();
-
-        let x = builder.add_input(2);
-        let tt: Vec<Fp> = vec![Fp(1), Fp(2)];
-        let out = builder.add_proj_gate(&x, tt);
-        builder.add_output(&out);
-
-        let circ = builder.build().unwrap();
-
-        let values = vec![Fp(0)];
-        let res = circ.evaluate(&values).unwrap();
-        assert_eq!(res, vec![Fp(1)]);
-    }
-
-    // check if value is greater than mod specified by value
-    #[test]
-    fn test_input_value_exceed_mod() {
-        let mut builder = ArithmeticCircuitBuilder::new();
-        let x = builder.add_input(2);
-        let y = builder.add_input(2);
-
-        let out = builder.add_add_gate(&x, &y).unwrap();
-        builder.add_output(&out);
-
-        let circ = builder.build().unwrap();
-        let values = vec![Fp(0), Fp(2)];
-        let res = circ.evaluate(&values);
-        assert_eq!(res, Err(ArithCircuitError::InvalidInputMod(2, 2)));
-    }
+    // #[test]
+    // fn test_evaluate_proj() {
+    //     let mut builder = ArithmeticCircuitBuilder::new();
+    //
+    //     let x = builder.add_input::<u32>().unwrap();
+    //     let tt: Vec<Fp> = vec![Fp(1), Fp(2)];
+    //     let out = builder.add_proj_gate(&x, tt);
+    //     builder.add_output(&out);
+    //
+    //     let circ = builder.build().unwrap();
+    //
+    //     let values = vec![Fp(0)];
+    //     let res = circ.evaluate(&values).unwrap();
+    //     assert_eq!(res, vec![Fp(1)]);
+    // }
 }

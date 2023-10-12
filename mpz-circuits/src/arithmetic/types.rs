@@ -5,6 +5,17 @@ use crate::{
     {Feed, Sink},
 };
 
+/// An error related to binary type conversions.
+#[derive(Debug, PartialEq, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum TypeError {
+    #[error("Invalid crt representation length: expected: {expected}, actual: {actual}")]
+    InvalidLength { expected: usize, actual: usize },
+
+    #[error("Crt representation length does not mach: got {0} and {1}")]
+    UnequalLength(usize, usize),
+}
+
 /// A node in an arithmetic circuit.
 /// Node represent a single wire with specific modulus.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -84,17 +95,77 @@ impl From<&ArithNode<Sink>> for ArithNode<Feed> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Fp(pub u32);
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum CrtRepr {
+    Bool(CrtValue<1>),
+    U32(CrtValue<10>),
+}
+
+impl CrtRepr {
+    pub fn len(&self) -> usize {
+        match self {
+            CrtRepr::Bool(_) => 1,
+            CrtRepr::U32(_) => 10,
+        }
+    }
+
+    pub fn iter(&self) -> Box<dyn Iterator<Item = &ArithNode<Feed>> + '_> {
+        match self {
+            CrtRepr::Bool(v) => Box::new(v.0.iter()),
+            CrtRepr::U32(v) => Box::new(v.0.iter()),
+        }
+    }
+}
+
+pub trait ToCrtRepr {
+    fn new_crt_repr(nodes: &[ArithNode<Feed>]) -> Result<CrtRepr, TypeError>;
+}
+
+pub trait CrtLen {
+    const LEN: usize;
+}
+
+impl ToCrtRepr for bool {
+    fn new_crt_repr(nodes: &[ArithNode<Feed>]) -> Result<CrtRepr, TypeError> {
+        Ok(CrtRepr::Bool(CrtValue::<1>::new(
+            nodes.try_into().map_err(|_| TypeError::InvalidLength {
+                actual: nodes.len(),
+                expected: 1,
+            })?,
+        )))
+    }
+}
+
+impl CrtLen for bool {
+    const LEN: usize = 1;
+}
+
+impl ToCrtRepr for u32 {
+    fn new_crt_repr(nodes: &[ArithNode<Feed>]) -> Result<CrtRepr, TypeError> {
+        Ok(CrtRepr::U32(CrtValue::<10>::new(
+            nodes.try_into().map_err(|_| TypeError::InvalidLength {
+                actual: nodes.len(),
+                expected: 10,
+            })?,
+        )))
+    }
+}
+
+impl CrtLen for u32 {
+    const LEN: usize = 10;
+}
+
 /// CRT representation of a field element in circuit.
 /// This bundles crt wires. each wire has modulus and unique id in a circuit.
-#[derive(Debug, Eq, PartialEq)]
-pub struct CrtRepr<const N: usize>([ArithNode<Feed>; N]);
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct CrtValue<const N: usize>([ArithNode<Feed>; N]);
 
-impl<const N: usize> CrtRepr<N> {
-    pub(crate) fn new(nodes: [ArithNode<Feed>; N]) -> CrtRepr<N> {
+impl<const N: usize> CrtValue<N> {
+    pub(crate) fn new(nodes: [ArithNode<Feed>; N]) -> CrtValue<N> {
         // check if N is less than NPRIMES
         // There is unstable feature to do this compile time using generic_const_expr.
         assert!(N <= NPRIMES, "Const N should be less than NPRIMES");
-        CrtRepr(nodes)
+        CrtValue(nodes)
     }
 
     /// generate CrtRepr which takes N ids starting from given id.
@@ -102,13 +173,13 @@ impl<const N: usize> CrtRepr<N> {
     /// having the following id and moduli pairs
     /// [(2,4), (3,5), (5,6), (7,7), (11,8)]
     #[allow(dead_code)]
-    pub(crate) fn new_from_id(id: usize) -> CrtRepr<N> {
+    pub(crate) fn new_from_id(id: usize) -> CrtValue<N> {
         let mut nodes = [ArithNode::<Feed>::new(0, 0); N];
         for (i, p) in (0..N).zip(PRIMES) {
             nodes[i] = ArithNode::<Feed>::new(id + i, p);
         }
 
-        CrtRepr(nodes)
+        CrtValue(nodes)
     }
 
     pub(crate) fn nodes(&self) -> [ArithNode<Feed>; N] {
@@ -135,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_crt_repr() {
-        let crt = CrtRepr::<5>::new_from_id(2);
+        let crt = CrtValue::<5>::new_from_id(2);
 
         let nodes: [ArithNode<Feed>; 5] = [
             ArithNode::<Feed>::new(2, 2),
@@ -144,7 +215,7 @@ mod tests {
             ArithNode::<Feed>::new(5, 7),
             ArithNode::<Feed>::new(6, 11),
         ];
-        let expected = CrtRepr(nodes);
+        let expected = CrtValue(nodes);
 
         assert_eq!(crt, expected);
     }
