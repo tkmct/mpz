@@ -7,7 +7,9 @@ use crate::{
     encoding::{crt_encoded_state, CrtLabels, Delta, EncodedCrtValue, Label},
 };
 
-use mpz_circuits::{arithmetic::components::ArithGate, ArithmeticCircuit};
+use mpz_circuits::arithmetic::{
+    components::ArithGate, ArithCircuitError, ArithmeticCircuit, TypeError,
+};
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
     Block,
@@ -31,22 +33,32 @@ pub struct BMR16Generator<const N: usize> {
 }
 
 impl<const N: usize> BMR16Generator<N> {
-    // NOTE: encoding of the input labels are done outside.
+    /// Create bmr16 generator struct.
+    /// encoding of the input labels are done outside.
     pub fn new(
         circ: Arc<ArithmeticCircuit>,
         deltas: HashMap<u16, Delta>,
-        inputs: Vec<EncodedCrtValue<N, crt_encoded_state::Full>>,
-    ) -> Self {
+        inputs: Vec<EncodedCrtValue<crt_encoded_state::Full>>,
+    ) -> Result<Self, ArithCircuitError> {
         let hasher = Some(Hasher::new());
 
-        let low_labels = vec![None; circ.feed_count()];
+        // Set zero label for every input feed
+        let mut low_labels = vec![None; circ.feed_count()];
         for (encoded, input) in inputs.iter().zip(circ.inputs()) {
-            // for (label, node) in encoded.iter().zip(input.iter()) {
-            //     low_labels[node.id()] = Some(*label)
-            // }
+            if encoded.len() != input.len() {
+                return Err(TypeError::InvalidLength {
+                    expected: encoded.len(),
+                    actual: input.len(),
+                }
+                .into());
+            }
+
+            for (label, node) in encoded.iter().zip(input.iter()) {
+                low_labels[node.id()] = Some(*label)
+            }
         }
 
-        BMR16Generator {
+        Ok(BMR16Generator {
             cipher: &(FIXED_KEY_AES),
             circ,
             deltas,
@@ -54,7 +66,7 @@ impl<const N: usize> BMR16Generator<N> {
             pos: 0,
             gid: 1,
             hasher,
-        }
+        })
     }
 }
 
