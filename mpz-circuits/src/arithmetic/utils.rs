@@ -1,3 +1,4 @@
+//! ArithmeticCircuit utils
 use std::mem::discriminant;
 
 use crate::arithmetic::{
@@ -6,10 +7,10 @@ use crate::arithmetic::{
 };
 
 /// Number of primes supported by our library.
-pub(crate) const NPRIMES: usize = 29;
+pub const NPRIMES: usize = 29;
 
 /// Primes used in fancy garbling.
-pub(crate) const PRIMES: [u16; 29] = [
+pub const PRIMES: [u16; 29] = [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
     101, 103, 107, 109,
 ];
@@ -54,7 +55,7 @@ fn inv(inp_a: i128, inp_b: i128) -> i128 {
 
 /// Convert set of crt represented values to field points.
 /// This methods uses ArithNodes in CrtRepr to reference values in feed.
-pub(crate) fn convert_crts_to_values(
+pub fn convert_crts_to_values(
     crt_reprs: &[CrtRepr],
     feeds: &[Option<Fp>],
 ) -> Result<Vec<Fp>, ArithCircuitError> {
@@ -81,7 +82,7 @@ pub(crate) fn convert_crts_to_values(
 }
 
 /// Convert set of values to CRT representation and put actual values in Feed.
-pub(crate) fn convert_values_to_crts(
+pub fn convert_values_to_crts(
     crt_reprs: &[CrtRepr],
     values: &[Fp],
 ) -> Result<Vec<Vec<Fp>>, ArithCircuitError> {

@@ -1,3 +1,4 @@
+//! Types used for Arithmetic value representation in arithmetic circuit.
 use std::marker::PhantomData;
 
 use crate::{
@@ -95,13 +96,17 @@ impl From<&ArithNode<Sink>> for ArithNode<Feed> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Fp(pub u32);
 
+/// Crt representation type.
 #[derive(Debug, Clone, Eq, PartialEq)]
+#[allow(missing_docs)]
 pub enum CrtRepr {
     Bool(CrtValue<1>),
     U32(CrtValue<10>),
 }
 
 impl CrtRepr {
+    /// returns length of moduli.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         match self {
             CrtRepr::Bool(_) => 1,
@@ -109,6 +114,7 @@ impl CrtRepr {
         }
     }
 
+    /// Iterate through ArithNode.
     pub fn iter(&self) -> Box<dyn Iterator<Item = &ArithNode<Feed>> + '_> {
         match self {
             CrtRepr::Bool(v) => Box::new(v.0.iter()),
@@ -117,10 +123,14 @@ impl CrtRepr {
     }
 }
 
+/// Trait for convertable to CrtRepr
 pub trait ToCrtRepr {
+    /// create new CrtRepr instance from slice of ArithNode
     fn new_crt_repr(nodes: &[ArithNode<Feed>]) -> Result<CrtRepr, TypeError>;
 }
 
+/// Crt length trait
+#[allow(missing_docs)]
 pub trait CrtLen {
     const LEN: usize;
 }
@@ -173,7 +183,7 @@ impl<const N: usize> CrtValue<N> {
     /// having the following id and moduli pairs
     /// [(2,4), (3,5), (5,6), (7,7), (11,8)]
     #[allow(dead_code)]
-    pub(crate) fn new_from_id(id: usize) -> CrtValue<N> {
+    pub fn new_from_id(id: usize) -> CrtValue<N> {
         let mut nodes = [ArithNode::<Feed>::new(0, 0); N];
         for (i, p) in (0..N).zip(PRIMES) {
             nodes[i] = ArithNode::<Feed>::new(id + i, p);
