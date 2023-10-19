@@ -1,9 +1,10 @@
 //! ArithmeticCircuit utils
+//! most codes are from swanky
 use std::mem::discriminant;
 
 use crate::arithmetic::{
     circuit::ArithCircuitError,
-    types::{CrtRepr, Fp},
+    types::{CrtRepr, Fp, TypeError},
 };
 
 /// Number of primes supported by our library.
@@ -53,12 +54,35 @@ fn inv(inp_a: i128, inp_b: i128) -> i128 {
     x1
 }
 
+/// Convert crt value to Fp
+pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<Fp, TypeError> {
+    if values.len() != len {
+        return Err(TypeError::InvalidLength {
+            expected: len,
+            actual: values.len(),
+        });
+    };
+
+    let n_acc = PRIMES.iter().take(len).fold(1, |acc, q| *q as i128 * acc);
+    let mut ret = 0;
+
+    for (p, a) in PRIMES.iter().take(len).zip(values) {
+        let p = *p as i128;
+
+        let q = n_acc / p;
+        ret += *a as i128 * inv(q, p) * q;
+        ret %= &n_acc;
+    }
+    Ok(Fp(ret as u32))
+}
+
 /// Convert set of crt represented values to field points.
 /// This methods uses ArithNodes in CrtRepr to reference values in feed.
 pub fn convert_crts_to_values(
     crt_reprs: &[CrtRepr],
     feeds: &[Option<Fp>],
 ) -> Result<Vec<Fp>, ArithCircuitError> {
+    // TODO: use convert_crt_to_value method inside to avoid duplication
     crt_reprs
         .iter()
         .map(|crt| {
@@ -95,6 +119,39 @@ pub fn convert_values_to_crts(
                 .collect::<Vec<Fp>>()
         })
         .collect::<Vec<Vec<Fp>>>())
+}
+
+/// Returns `true` if `x` is a power of 2.
+pub fn is_power_of_2(x: u16) -> bool {
+    (x & (x - 1)) == 0
+}
+
+/// Determine how many `mod q` digits fit into a `u128` (includes the color
+/// digit).
+pub fn digits_per_u128(modulus: u16) -> usize {
+    debug_assert_ne!(modulus, 0);
+    debug_assert_ne!(modulus, 1);
+    if modulus == 2 {
+        128
+    } else if modulus <= 4 {
+        64
+    } else if modulus <= 8 {
+        42
+    } else if modulus <= 16 {
+        32
+    } else if modulus <= 32 {
+        25
+    } else if modulus <= 64 {
+        21
+    } else if modulus <= 128 {
+        18
+    } else if modulus <= 256 {
+        16
+    } else if modulus <= 512 {
+        14
+    } else {
+        (128.0 / (modulus as f64).log2().ceil()).floor() as usize
+    }
 }
 
 #[cfg(test)]

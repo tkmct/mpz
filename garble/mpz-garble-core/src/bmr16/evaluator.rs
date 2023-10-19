@@ -1,14 +1,20 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use blake3::Hasher;
 
 use crate::{
     circuit::EncryptedGate,
-    encoding::{add_block, cmul_block, crt_encoding_state, Delta, EncodedCrtValue, Label},
+    encoding::{
+        add_label, cmul_label, crt_encoding_state, output_tweak, CrtDecoding, DecodeError,
+        EncodedCrtValue, LabelModN,
+    },
 };
 
 use mpz_circuits::arithmetic::{
-    components::ArithGate, ArithCircuitError, ArithmeticCircuit, TypeError,
+    components::ArithGate,
+    types::Fp,
+    utils::{convert_crt_to_value, PRIMES},
+    ArithCircuitError, ArithmeticCircuit, TypeError,
 };
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
@@ -25,6 +31,8 @@ pub enum EvaluatorError {
     CircuitError(#[from] ArithCircuitError),
     #[error("generator not finished")]
     NotFinished,
+    #[error(transparent)]
+    DecodeError(#[from] DecodeError),
 }
 
 pub struct BMR16Evaluator<const N: usize> {
@@ -32,11 +40,11 @@ pub struct BMR16Evaluator<const N: usize> {
     /// Circuit to genrate a garbled circuit for
     circ: Arc<ArithmeticCircuit>,
     /// The 0 value labels for the garbled circuit
-    active_labels: Vec<Option<Label>>,
+    active_labels: Vec<Option<LabelModN>>,
     /// Current position in the circuit
     pos: usize,
-    /// Current gate id
-    gid: usize,
+    /// Current gate id. needed for streaming
+    _gid: usize,
     /// Whether the evaluator is finished
     complete: bool,
     /// Hasher to use to hash the encrypted gates
@@ -49,7 +57,7 @@ impl<const N: usize> BMR16Evaluator<N> {
         inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>>,
     ) -> Result<Self, EvaluatorError> {
         let hasher = Some(Hasher::new());
-        let mut active_labels: Vec<Option<Label>> = vec![None; circ.feed_count()];
+        let mut active_labels: Vec<Option<LabelModN>> = vec![None; circ.feed_count()];
         for (encoded, input) in inputs.iter().zip(circ.inputs()) {
             if encoded.len() != input.len() {
                 return Err(TypeError::InvalidLength {
@@ -60,7 +68,7 @@ impl<const N: usize> BMR16Evaluator<N> {
             }
 
             for (label, node) in encoded.iter().zip(input.iter()) {
-                active_labels[node.id()] = Some(*label);
+                active_labels[node.id()] = Some(label.clone());
             }
         }
 
@@ -69,7 +77,7 @@ impl<const N: usize> BMR16Evaluator<N> {
             circ,
             active_labels,
             pos: 0,
-            gid: 1,
+            _gid: 1,
             complete: false,
             hasher,
         })
@@ -93,9 +101,13 @@ impl<const N: usize> BMR16Evaluator<N> {
             .outputs()
             .iter()
             .map(|output| {
-                let labels: Vec<Label> = output
+                let labels: Vec<LabelModN> = output
                     .iter()
-                    .map(|node| self.active_labels[node.id()].expect("feed should be initialized"))
+                    .map(|node| {
+                        self.active_labels[node.id()]
+                            .clone()
+                            .expect("feed should be initialized")
+                    })
                     .collect();
 
                 EncodedCrtValue::<crt_encoding_state::Active>::from(labels)
@@ -111,7 +123,7 @@ impl<const N: usize> BMR16Evaluator<N> {
         })
     }
 
-    pub fn evaluate<'a>(&mut self, mut encrypted_gates: impl Iterator<Item = &'a EncryptedGate>) {
+    pub fn evaluate<'a>(&mut self, _encrypted_gates: impl Iterator<Item = &'a EncryptedGate>) {
         let labels = &mut self.active_labels;
 
         while self.pos < self.circ.gates().len() {
@@ -121,29 +133,81 @@ impl<const N: usize> BMR16Evaluator<N> {
                     y: node_y,
                     z: node_z,
                 } => {
-                    let x = labels[node_x.id()].expect("feed should be initialized");
-                    let y = labels[node_y.id()].expect("feed should be initialized");
-                    labels[node_z.id()] = Some(Label::new(add_block(&x.to_inner(), &y.to_inner())));
+                    let x = labels
+                        .get(node_x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("label should be initialized");
+                    let y = labels
+                        .get(node_y.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("label should be initialized");
+
+                    labels[node_z.id()] = Some(add_label(&x, &y));
                 }
                 ArithGate::Cmul {
                     x: node_x,
                     c,
                     z: node_z,
                 } => {
-                    let x = labels[node_x.id()].expect("feed should be initialized");
-                    labels[node_z.id()] = Some(Label::new(cmul_block(&x.to_inner(), *c)));
+                    let x = labels
+                        .get(node_x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("label should be initialized");
+
+                    labels[node_z.id()] = Some(cmul_label(&x, c.0 as u64));
                 }
-                ArithGate::Mul { x, y, z } => {
+                ArithGate::Mul { .. } => {
                     todo!()
                 }
-                ArithGate::Proj { x, tt, z } => {
+                ArithGate::Proj { .. } => {
                     todo!()
                 }
             }
-
             self.pos += 1;
         }
 
         self.complete = true;
+    }
+
+    pub fn decode_outputs(&self, decodings: Vec<CrtDecoding>) -> Result<Vec<Fp>, EvaluatorError> {
+        let outputs = self.outputs()?;
+
+        let values: Result<Vec<Fp>, DecodeError> = outputs
+            .iter()
+            .zip(decodings.iter())
+            .enumerate()
+            .map(|(idx, (output, decoding))| {
+                let decoded_nodes: Vec<u16> = output
+                    .iter()
+                    .enumerate()
+                    .map(|(i, label)| {
+                        let q = PRIMES[i];
+                        let mut decoded = None;
+
+                        for k in 0..q {
+                            let tweak = output_tweak(idx, k);
+                            let actual =
+                                LabelModN::from_block(self.cipher.tccr(tweak, label.to_block()), q);
+                            let dec = decoding.get(i, k as usize).unwrap_or_else(|| {
+                                panic!("Decoding should be set for.{}, {}, {}", idx, i, k)
+                            });
+
+                            if actual == *dec {
+                                decoded = Some(k);
+                                break;
+                            }
+                        }
+                        decoded.ok_or(DecodeError::LackOfDecodingInfo(idx, q))
+                    })
+                    .collect::<Result<Vec<u16>, DecodeError>>()?;
+
+                convert_crt_to_value(output.len(), &decoded_nodes).map_err(|e| e.into())
+            })
+            .collect();
+
+        values.map_err(|e| e.into())
     }
 }

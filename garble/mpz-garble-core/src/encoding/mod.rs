@@ -18,6 +18,7 @@ mod ops;
 mod value;
 
 mod crt;
+mod utils;
 
 use std::{
     ops::{BitXor, Deref, Index},
@@ -28,9 +29,10 @@ use mpz_core::Block;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub(crate) use crt::{add_block, cmul_block};
+pub(crate) use crt::{add_label, cmul_label, output_tweak, CrtDecoding, DecodeError};
 pub use crt::{
-    state as crt_encoding_state, ChaChaCrtEncoder, EncodedCrtValue, Labels as CrtLabels,
+    state as crt_encoding_state, ChaChaCrtEncoder, CrtDelta, EncodedCrtValue, LabelModN,
+    Labels as CrtLabels,
 };
 
 pub use encoder::{ChaChaEncoder, Encoder};

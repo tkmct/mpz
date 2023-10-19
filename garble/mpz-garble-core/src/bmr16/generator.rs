@@ -1,18 +1,20 @@
 use std::{collections::HashMap, sync::Arc};
 
 use blake3::Hasher;
-
-use crate::{
-    circuit::EncryptedGate,
-    encoding::{add_block, cmul_block, crt_encoding_state, Delta, EncodedCrtValue, Label},
-};
-
 use mpz_circuits::arithmetic::{
-    components::ArithGate, ArithCircuitError, ArithmeticCircuit, TypeError,
+    components::ArithGate, utils::PRIMES, ArithCircuitError, ArithmeticCircuit, TypeError,
 };
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
     hash::Hash,
+};
+
+use crate::{
+    circuit::EncryptedGate,
+    encoding::{
+        add_label, cmul_label, crt_encoding_state, output_tweak, CrtDecoding, CrtDelta,
+        EncodedCrtValue, LabelModN,
+    },
 };
 
 /// Errors that can occur during garbled circuit generation.
@@ -32,13 +34,13 @@ pub struct BMR16Generator<const N: usize> {
     /// Circuit to genrate a garbled circuit for
     circ: Arc<ArithmeticCircuit>,
     /// Delta values to use while generating the circuit
-    deltas: HashMap<u16, Delta>,
+    deltas: HashMap<u16, CrtDelta>,
     /// The 0 value labels for the garbled circuit
-    low_labels: Vec<Option<Label>>,
+    low_labels: Vec<Option<LabelModN>>,
     /// Current position in the circuit
     pos: usize,
-    /// Current gate id
-    gid: usize,
+    /// Current gate id. needed for streaming.
+    _gid: usize,
     /// Hasher to use to hash the encrypted gates
     hasher: Option<Hasher>,
 }
@@ -48,7 +50,7 @@ impl<const N: usize> BMR16Generator<N> {
     /// encoding of the input labels are done outside.
     pub fn new(
         circ: Arc<ArithmeticCircuit>,
-        deltas: HashMap<u16, Delta>,
+        deltas: HashMap<u16, CrtDelta>,
         inputs: Vec<EncodedCrtValue<crt_encoding_state::Full>>,
     ) -> Result<Self, GeneratorError> {
         let hasher = Some(Hasher::new());
@@ -65,7 +67,7 @@ impl<const N: usize> BMR16Generator<N> {
             }
 
             for (label, node) in encoded.iter().zip(input.iter()) {
-                low_labels[node.id()] = Some(*label)
+                low_labels[node.id()] = Some(label.clone())
             }
         }
 
@@ -75,7 +77,7 @@ impl<const N: usize> BMR16Generator<N> {
             deltas,
             low_labels,
             pos: 0,
-            gid: 1,
+            _gid: 1,
             hasher,
         })
     }
@@ -98,9 +100,15 @@ impl<const N: usize> BMR16Generator<N> {
             .outputs()
             .iter()
             .map(|output| {
-                let labels: Vec<Label> = output
+                let labels: Vec<LabelModN> = output
                     .iter()
-                    .map(|node| self.low_labels[node.id()].expect("feed should be initialized"))
+                    .map(|node| {
+                        self.low_labels
+                            .get(node.id())
+                            .expect("label index out of range")
+                            .clone()
+                            .expect("label should be initialized")
+                    })
                     .collect();
 
                 EncodedCrtValue::<crt_encoding_state::Full>::from(labels)
@@ -114,6 +122,35 @@ impl<const N: usize> BMR16Generator<N> {
             let hash: [u8; 32] = hasher.finalize().into();
             Hash::from(hash)
         })
+    }
+
+    pub fn decodings(&self) -> Result<Vec<CrtDecoding>, GeneratorError> {
+        let outputs = self.outputs()?;
+
+        Ok(outputs
+            .iter()
+            .enumerate()
+            .map(|(idx, output)| {
+                let hashes = output
+                    .iter()
+                    .enumerate()
+                    .map(|(i, x)| {
+                        let q = PRIMES[i];
+                        let d = self.deltas.get(&q).unwrap();
+
+                        (0..q)
+                            .map(|k| {
+                                let label = add_label(x, &cmul_label(d, k as u64));
+                                let tweak = output_tweak(idx, k);
+                                LabelModN::from_block(self.cipher.tccr(tweak, label.to_block()), q)
+                            })
+                            .collect::<Vec<LabelModN>>()
+                    })
+                    .collect();
+
+                CrtDecoding::new(hashes)
+            })
+            .collect())
     }
 }
 
@@ -132,22 +169,33 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
             match gate {
                 ArithGate::Add { x, y, z } => {
                     // zero labels for input x and y
-                    let x_0 = low_labels[x.id()].expect("feed should be set.");
-                    let y_0 = low_labels[y.id()].expect("feed should be set.");
+                    let x_0 = low_labels
+                        .get(x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+                    let y_0 = low_labels
+                        .get(y.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
                     // set zero label for z
-                    low_labels[z.id()] =
-                        Some(Label::new(add_block(&x_0.to_inner(), &y_0.to_inner())));
+                    low_labels[z.id()] = Some(add_label(&x_0, &y_0));
                 }
                 ArithGate::Cmul { x, c, z } => {
                     // zero labels for input x
-                    let x_0 = low_labels[x.id()].expect("feed should be set.");
+                    let x_0 = low_labels
+                        .get(x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("feed should be set.");
                     // set zero label for z
-                    low_labels[z.id()] = Some(Label::from(cmul_block(&x_0.to_inner(), *c)));
+                    low_labels[z.id()] = Some(cmul_label(&x_0, c.0 as u64));
                 }
-                ArithGate::Mul { x, y, z } => {
+                ArithGate::Mul { .. } => {
                     todo!()
                 }
-                ArithGate::Proj { x, tt, z } => {
+                ArithGate::Proj { .. } => {
                     todo!()
                 }
             }
