@@ -1,3 +1,5 @@
+//! BMR16 garble module
+
 pub mod evaluator;
 pub mod generator;
 
@@ -56,17 +58,17 @@ mod tests {
             .map(|input| encoder.encode_by_len(0, input.len()))
             .collect();
 
-        let active_inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>> = vec![
-            full_inputs[0].clone().select(encoder.deltas(), a),
-            full_inputs[1].clone().select(encoder.deltas(), b),
-        ];
-
         let mut gen = BMR16Generator::<1>::new(
             Arc::new(circ.clone()),
             encoder.deltas().clone(),
-            full_inputs,
+            full_inputs.clone(),
         )
         .unwrap();
+
+        let active_inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>> = vec![
+            gen.select(&full_inputs[0], a),
+            gen.select(&full_inputs[1], b),
+        ];
 
         let mut ev = BMR16Evaluator::<1>::new(Arc::new(circ.clone()), active_inputs).unwrap();
 
@@ -119,17 +121,17 @@ mod tests {
             .map(|input| encoder.encode_by_len(0, input.len()))
             .collect();
 
-        let active_inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>> = vec![
-            full_inputs[0].clone().select(encoder.deltas(), a),
-            full_inputs[1].clone().select(encoder.deltas(), b),
-        ];
-
         let mut gen = BMR16Generator::<10>::new(
             Arc::new(circ.clone()),
             encoder.deltas().clone(),
-            full_inputs,
+            full_inputs.clone(),
         )
         .unwrap();
+
+        let active_inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>> = vec![
+            gen.select(&full_inputs[0], a),
+            gen.select(&full_inputs[1], b),
+        ];
 
         let mut ev = BMR16Evaluator::<10>::new(Arc::new(circ.clone()), active_inputs).unwrap();
 

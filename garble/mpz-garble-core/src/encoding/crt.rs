@@ -147,6 +147,13 @@ pub struct Labels<S: LabelState> {
     labels: Vec<LabelModN>,
 }
 
+impl<S: LabelState> Labels<S> {
+    /// Return reference to inner labels
+    pub fn inner(&self) -> &Vec<LabelModN> {
+        &self.labels
+    }
+}
+
 impl Labels<state::Full> {
     /// Create new Labels instance from vector of LabelModN
     pub fn new(labels: Vec<LabelModN>) -> Self {
@@ -156,32 +163,11 @@ impl Labels<state::Full> {
             labels,
         }
     }
-
-    /// Create active label from values.
-    /// Each value corresponds to labels.
-    /// TODO: move this into generator?
-    pub fn select(
-        &self,
-        deltas: &HashMap<u16, CrtDelta>,
-        values: Vec<u16>,
-    ) -> Labels<state::Active> {
-        let labels: Vec<LabelModN> = values
-            .iter()
-            .enumerate()
-            .map(|(i, v)| {
-                let q = PRIMES[i];
-                let d = deltas.get(&q).expect("Delta should be set for given prime");
-
-                add_label(&self.labels[i], &cmul_label(d, *v as u64))
-            })
-            .collect();
-
-        Labels::<state::Active>::new(labels)
-    }
 }
 
 impl Labels<state::Active> {
-    fn new(labels: Vec<LabelModN>) -> Self {
+    /// create new active encoding label.
+    pub fn new(labels: Vec<LabelModN>) -> Self {
         Self {
             _state: state::Active {},
             labels,
@@ -204,16 +190,10 @@ impl<S: LabelState> EncodedCrtValue<S> {
     pub(crate) fn len(&self) -> usize {
         self.0.labels.len()
     }
-}
 
-impl EncodedCrtValue<state::Full> {
-    /// retrieve actual label value using zero label and delta
-    pub fn select(
-        &self,
-        deltas: &HashMap<u16, CrtDelta>,
-        values: Vec<u16>,
-    ) -> EncodedCrtValue<state::Active> {
-        EncodedCrtValue(self.0.select(deltas, values))
+    /// Returns i-th inner label if exists
+    pub(crate) fn get_label(&self, i: usize) -> Option<&LabelModN> {
+        self.0.inner().get(i)
     }
 }
 

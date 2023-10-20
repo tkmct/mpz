@@ -59,8 +59,6 @@ mod evaluator;
 mod generator;
 pub mod msg;
 
-// TODO: fix by adding docs
-#[allow(missing_docs)]
 pub mod bmr16;
 
 pub use circuit::{EncryptedGate, GarbledCircuit};

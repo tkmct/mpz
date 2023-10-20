@@ -1,3 +1,4 @@
+//! BMR16 evaluator implementation
 use std::sync::Arc;
 
 use blake3::Hasher;
@@ -34,6 +35,7 @@ pub enum EvaluatorError {
     DecodeError(#[from] DecodeError),
 }
 
+/// BMR16 evaluator struct
 pub struct BMR16Evaluator<const N: usize> {
     cipher: &'static FixedKeyAes,
     /// Circuit to genrate a garbled circuit for
@@ -51,6 +53,8 @@ pub struct BMR16Evaluator<const N: usize> {
 }
 
 impl<const N: usize> BMR16Evaluator<N> {
+    /// Construct new evaluator instance from circuit and inputs.
+    /// Inputs should be encoded as active encoding using EncodedCrtValue.
     pub fn new(
         circ: Arc<ArithmeticCircuit>,
         inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>>,
@@ -122,6 +126,7 @@ impl<const N: usize> BMR16Evaluator<N> {
         })
     }
 
+    /// Evaluate garbled circuit.
     pub fn evaluate<'a>(&mut self, _encrypted_gates: impl Iterator<Item = &'a EncryptedGate>) {
         let labels = &mut self.active_labels;
 
@@ -171,6 +176,7 @@ impl<const N: usize> BMR16Evaluator<N> {
         self.complete = true;
     }
 
+    /// Decode outputs of garbled circuit using decoding info given by generator.
     pub fn decode_outputs(&self, decodings: Vec<CrtDecoding>) -> Result<Vec<u32>, EvaluatorError> {
         let outputs = self.outputs()?;
 

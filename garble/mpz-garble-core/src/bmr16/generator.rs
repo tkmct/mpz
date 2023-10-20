@@ -1,3 +1,4 @@
+//! BMR16 generator implementation
 use std::{collections::HashMap, sync::Arc};
 
 use blake3::Hasher;
@@ -29,6 +30,7 @@ pub enum GeneratorError {
     NotFinished,
 }
 
+/// BMR16 generator
 pub struct BMR16Generator<const N: usize> {
     cipher: &'static FixedKeyAes,
     /// Circuit to genrate a garbled circuit for
@@ -124,6 +126,35 @@ impl<const N: usize> BMR16Generator<N> {
         })
     }
 
+    /// Create active label from values.
+    /// Each value corresponds to labels.
+    pub fn select(
+        &self,
+        encoded_crt_value: &EncodedCrtValue<crt_encoding_state::Full>,
+        values: Vec<u16>,
+    ) -> EncodedCrtValue<crt_encoding_state::Active> {
+        let active_labels: Vec<LabelModN> = values
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                let q = PRIMES[i];
+                let d = self
+                    .deltas
+                    .get(&q)
+                    .expect("Delta should be set for given prime");
+
+                add_label(
+                    // TODO: not use unwrap here
+                    encoded_crt_value.get_label(i).unwrap(),
+                    &cmul_label(d, *v as u64),
+                )
+            })
+            .collect();
+
+        EncodedCrtValue::<crt_encoding_state::Active>::from(active_labels)
+    }
+
+    /// Generate decoding info used to decode outputs of the circuit .
     pub fn decodings(&self) -> Result<Vec<CrtDecoding>, GeneratorError> {
         let outputs = self.outputs()?;
 

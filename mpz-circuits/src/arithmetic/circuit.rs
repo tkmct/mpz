@@ -99,7 +99,6 @@ impl ArithmeticCircuit {
         }
 
         for gate in self.gates.iter() {
-            // TODO: not cast directly. how to handle correctly?
             let m = gate.x().modulus();
             match gate {
                 ArithGate::Add { x, y, z } => {
