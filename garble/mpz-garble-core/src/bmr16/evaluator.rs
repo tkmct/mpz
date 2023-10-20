@@ -12,7 +12,6 @@ use crate::{
 
 use mpz_circuits::arithmetic::{
     components::ArithGate,
-    types::Fp,
     utils::{convert_crt_to_value, PRIMES},
     ArithCircuitError, ArithmeticCircuit, TypeError,
 };
@@ -157,7 +156,7 @@ impl<const N: usize> BMR16Evaluator<N> {
                         .clone()
                         .expect("label should be initialized");
 
-                    labels[node_z.id()] = Some(cmul_label(&x, c.0 as u64));
+                    labels[node_z.id()] = Some(cmul_label(&x, *c as u64));
                 }
                 ArithGate::Mul { .. } => {
                     todo!()
@@ -172,10 +171,10 @@ impl<const N: usize> BMR16Evaluator<N> {
         self.complete = true;
     }
 
-    pub fn decode_outputs(&self, decodings: Vec<CrtDecoding>) -> Result<Vec<Fp>, EvaluatorError> {
+    pub fn decode_outputs(&self, decodings: Vec<CrtDecoding>) -> Result<Vec<u32>, EvaluatorError> {
         let outputs = self.outputs()?;
 
-        let values: Result<Vec<Fp>, DecodeError> = outputs
+        let values: Result<Vec<u32>, DecodeError> = outputs
             .iter()
             .zip(decodings.iter())
             .enumerate()

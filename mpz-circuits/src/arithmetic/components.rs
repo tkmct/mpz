@@ -1,6 +1,6 @@
 //! Definition of components used to construct arithmetic circuit.
 use crate::{
-    arithmetic::types::{ArithNode, Fp},
+    arithmetic::types::ArithNode,
     components::{Feed, Sink},
 };
 
@@ -23,13 +23,13 @@ pub enum ArithGate {
     Cmul {
         x: ArithNode<Sink>,
         /// constant value should be set as y value
-        c: Fp,
+        c: u32,
         z: ArithNode<Feed>,
     },
     Proj {
         x: ArithNode<Sink>,
         // Truth table for input x.
-        tt: Vec<Fp>,
+        tt: Vec<u16>,
         z: ArithNode<Feed>,
     },
 }

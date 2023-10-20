@@ -13,7 +13,7 @@ mod tests {
     use mpz_circuits::{
         arithmetic::{
             ops::add,
-            types::{CrtLen, CrtRepr, CrtValue, Fp, ToCrtRepr},
+            types::{CrtLen, CrtRepr, CrtValue, ToCrtRepr},
             utils::convert_values_to_crts,
         },
         ArithmeticCircuit, ArithmeticCircuitBuilder,
@@ -35,26 +35,20 @@ mod tests {
         let encoder = ChaChaCrtEncoder::<2>::new([0; 32]);
         let circ = adder_circ::<bool>();
 
-        let a_val = Fp(0);
-        let b_val = Fp(1);
+        let a_val = 0;
+        let b_val = 1;
 
-        // TODO: implement Field operation on Fp or use arkworks Fp?
-        // let expected = a_val + b_val;
-        let expected = Fp(1);
+        let expected = a_val + b_val;
 
         // TODO: construct CRT from actual value more easily.
         let a: Vec<u16> =
             convert_values_to_crts(&[CrtRepr::Bool(CrtValue::<1>::new_from_id(0))], &[a_val])
                 .unwrap()[0]
-                .iter()
-                .map(|fp| fp.0 as u16)
-                .collect();
+                .clone();
         let b: Vec<u16> =
             convert_values_to_crts(&[CrtRepr::Bool(CrtValue::<1>::new_from_id(0))], &[b_val])
                 .unwrap()[0]
-                .iter()
-                .map(|fp| fp.0 as u16)
-                .collect();
+                .clone();
 
         let full_inputs: Vec<EncodedCrtValue<crt_encoding_state::Full>> = circ
             .inputs()
@@ -103,27 +97,21 @@ mod tests {
         let encoder = ChaChaCrtEncoder::<10>::new([0; 32]);
         let circ = adder_circ::<u32>();
 
-        let a_val = Fp(3);
-        let b_val = Fp(5);
+        let a_val = 3;
+        let b_val = 5;
 
-        // TODO: implement Field operation on Fp or use arkworks Fp?
-        // let expected = a_val + b_val;
-        let expected = Fp(8);
+        let expected = a_val + b_val;
 
         // TODO: construct CRT from actual value more easily.
         let a: Vec<u16> =
             convert_values_to_crts(&[CrtRepr::U32(CrtValue::<10>::new_from_id(0))], &[a_val])
                 .unwrap()[0]
-                .iter()
-                .map(|fp| fp.0 as u16)
-                .collect();
+                .clone();
 
         let b: Vec<u16> =
             convert_values_to_crts(&[CrtRepr::U32(CrtValue::<10>::new_from_id(0))], &[b_val])
                 .unwrap()[0]
-                .iter()
-                .map(|fp| fp.0 as u16)
-                .collect();
+                .clone();
 
         let full_inputs: Vec<EncodedCrtValue<crt_encoding_state::Full>> = circ
             .inputs()

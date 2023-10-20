@@ -1,7 +1,7 @@
 //! Arithmetic Circuit module.
 use crate::arithmetic::{
     components::ArithGate,
-    types::{CrtRepr, Fp, TypeError},
+    types::{CrtRepr, TypeError},
     utils::{convert_crts_to_values, convert_values_to_crts},
 };
 
@@ -79,7 +79,8 @@ impl ArithmeticCircuit {
     }
 
     /// Evaluate a plaintext arithmetic circuit with given plaintext input values.
-    pub fn evaluate(&self, values: &[Fp]) -> Result<Vec<Fp>, ArithCircuitError> {
+    /// TODO: use generic type like ToCrt in inputs values
+    pub fn evaluate(&self, values: &[u32]) -> Result<Vec<u32>, ArithCircuitError> {
         if values.len() != self.inputs.len() {
             return Err(ArithCircuitError::InvalidInputCount(
                 self.inputs.len(),
@@ -87,7 +88,7 @@ impl ArithmeticCircuit {
             ));
         }
 
-        let mut feeds: Vec<Option<Fp>> = vec![None; self.feed_count()];
+        let mut feeds: Vec<Option<u16>> = vec![None; self.feed_count()];
 
         // Convert value to crt representation and add inputs in feeds.
         let actual_values = convert_values_to_crts(self.inputs(), values)?;
@@ -99,28 +100,28 @@ impl ArithmeticCircuit {
 
         for gate in self.gates.iter() {
             // TODO: not cast directly. how to handle correctly?
-            let m = gate.x().modulus() as u32;
+            let m = gate.x().modulus();
             match gate {
                 ArithGate::Add { x, y, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
                     let y = feeds[y.id()].expect("Feed should be set");
 
-                    feeds[z.id()] = Some(Fp((x.0 + y.0) % m));
+                    feeds[z.id()] = Some((x + y) % m);
                 }
                 ArithGate::Cmul { x, c, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
 
-                    feeds[z.id()] = Some(Fp(x.0 * c.0 % m));
+                    feeds[z.id()] = Some(((x as u32 * c) % m as u32) as u16);
                 }
                 ArithGate::Mul { x, y, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
                     let y = feeds[y.id()].expect("Feed should be set");
 
-                    feeds[z.id()] = Some(Fp(x.0 * y.0 % m));
+                    feeds[z.id()] = Some(x * y % m);
                 }
                 ArithGate::Proj { x, tt, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
-                    feeds[z.id()] = Some(tt[x.0 as usize]);
+                    feeds[z.id()] = Some(tt[x as usize]);
                 }
             }
         }
@@ -141,7 +142,6 @@ impl IntoIterator for ArithmeticCircuit {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::arithmetic::{builder::ArithmeticCircuitBuilder, ops::*};
 
     #[test]
@@ -156,22 +156,15 @@ mod tests {
         {
             let mut state = builder.state().borrow_mut();
             let c = mul(&mut state, &a, &b).unwrap();
-            let d = cmul(&mut state, &a, Fp(3));
+            let d = cmul(&mut state, &a, 3);
             out = add(&mut state, &c, &d).unwrap();
         }
 
         builder.add_output(&out);
         let circ = builder.build().unwrap();
-
-        // values have to be CRT represented value.
-        // 3, 5
-        // let values = vec![Fp(1), Fp(0), Fp(3), Fp(1), Fp(2), Fp(0)];
-        let values = vec![Fp(3), Fp(5)];
-
+        let values = vec![3, 5];
         let res = circ.evaluate(&values).unwrap();
-        // Returns 24 in Crt repr
-        // assert_eq!(res, vec![Fp(0), Fp(0), Fp(4)]);
-        assert_eq!(res, vec![Fp(24)]);
+        assert_eq!(res, vec![24]);
     }
 
     // #[test]

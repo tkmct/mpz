@@ -4,7 +4,7 @@ use std::mem::discriminant;
 
 use crate::arithmetic::{
     circuit::ArithCircuitError,
-    types::{CrtRepr, Fp, TypeError},
+    types::{CrtRepr, TypeError},
 };
 
 /// Number of primes supported by our library.
@@ -55,7 +55,8 @@ fn inv(inp_a: i128, inp_b: i128) -> i128 {
 }
 
 /// Convert crt value to Fp
-pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<Fp, TypeError> {
+/// TODO: make this generic
+pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<u32, TypeError> {
     if values.len() != len {
         return Err(TypeError::InvalidLength {
             expected: len,
@@ -73,15 +74,16 @@ pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<Fp, TypeError>
         ret += *a as i128 * inv(q, p) * q;
         ret %= &n_acc;
     }
-    Ok(Fp(ret as u32))
+    Ok(ret as u32)
 }
 
 /// Convert set of crt represented values to field points.
 /// This methods uses ArithNodes in CrtRepr to reference values in feed.
+/// TODO: make this generic over crt convertible type
 pub fn convert_crts_to_values(
     crt_reprs: &[CrtRepr],
-    feeds: &[Option<Fp>],
-) -> Result<Vec<Fp>, ArithCircuitError> {
+    feeds: &[Option<u16>],
+) -> Result<Vec<u32>, ArithCircuitError> {
     // TODO: use convert_crt_to_value method inside to avoid duplication
     crt_reprs
         .iter()
@@ -94,13 +96,13 @@ pub fn convert_crts_to_values(
 
             for node in crt.iter() {
                 let p = node.modulus() as i128;
-                let a = feeds[node.id()].unwrap().0; // TODO: check return error if no feeds set.
+                let a = feeds[node.id()].expect("feed should be initialized."); // TODO: check return error if no feeds set.
 
                 let q = n_acc / p;
                 ret += a as i128 * inv(q, p) * q;
                 ret %= &n_acc;
             }
-            Ok(Fp(ret as u32))
+            Ok(ret as u32)
         })
         .collect()
 }
@@ -108,17 +110,17 @@ pub fn convert_crts_to_values(
 /// Convert set of values to CRT representation and put actual values in Feed.
 pub fn convert_values_to_crts(
     crt_reprs: &[CrtRepr],
-    values: &[Fp],
-) -> Result<Vec<Vec<Fp>>, ArithCircuitError> {
+    values: &[u32],
+) -> Result<Vec<Vec<u16>>, ArithCircuitError> {
     Ok(crt_reprs
         .iter()
         .zip(values.iter())
         .map(|(crt, val)| {
             crt.iter()
-                .map(|n| Fp(val.0 % (n.modulus() as u32)))
-                .collect::<Vec<Fp>>()
+                .map(|n| (val % (n.modulus() as u32)) as u16)
+                .collect::<Vec<u16>>()
         })
-        .collect::<Vec<Vec<Fp>>>())
+        .collect::<Vec<Vec<u16>>>())
 }
 
 /// Returns `true` if `x` is a power of 2.
@@ -157,24 +159,13 @@ pub fn digits_per_u128(modulus: u16) -> usize {
 #[cfg(test)]
 mod tests {
     use crate::{
-        arithmetic::types::{ArithNode, CrtRepr, CrtValue, Fp},
+        arithmetic::types::{ArithNode, CrtRepr, CrtValue},
         Feed,
     };
 
     use super::*;
 
-    const CRT_124: [Fp; 10] = [
-        Fp(0),
-        Fp(1),
-        Fp(4),
-        Fp(5),
-        Fp(3),
-        Fp(7),
-        Fp(5),
-        Fp(10),
-        Fp(9),
-        Fp(8),
-    ];
+    const CRT_124: [u16; 10] = [0, 1, 4, 5, 3, 7, 5, 10, 9, 8];
 
     fn generate_crt_repr() -> CrtRepr {
         let nodes: [ArithNode<Feed>; 10] =
@@ -186,7 +177,7 @@ mod tests {
     fn test_convert_crts_to_values() {
         let crt_repr = generate_crt_repr();
 
-        let res = convert_values_to_crts(&[crt_repr], &[Fp(124)]);
+        let res = convert_values_to_crts(&[crt_repr], &[124]);
         assert!(res.is_ok());
 
         let crt_actual_vals = res.unwrap();
@@ -198,12 +189,12 @@ mod tests {
         // prepre values and feeds
         let crt_repr = generate_crt_repr();
         // prepare 10 feed values using above
-        let feeds: Vec<Option<Fp>> = CRT_124.iter().map(|v| Some(*v)).collect();
+        let feeds: Vec<Option<u16>> = CRT_124.iter().map(|v| Some(*v)).collect();
 
         let res = convert_crts_to_values(&[crt_repr], &feeds);
         assert!(res.is_ok());
 
         let actual_vals = res.unwrap();
-        assert_eq!(actual_vals, vec![Fp(124)]);
+        assert_eq!(actual_vals, vec![124]);
     }
 }

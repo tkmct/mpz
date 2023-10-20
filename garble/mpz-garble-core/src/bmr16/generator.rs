@@ -190,7 +190,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                         .clone()
                         .expect("feed should be set.");
                     // set zero label for z
-                    low_labels[z.id()] = Some(cmul_label(&x_0, c.0 as u64));
+                    low_labels[z.id()] = Some(cmul_label(&x_0, *c as u64));
                 }
                 ArithGate::Mul { .. } => {
                     todo!()

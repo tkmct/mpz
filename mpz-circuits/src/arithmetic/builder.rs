@@ -5,7 +5,7 @@ use crate::{
     arithmetic::{
         circuit::ArithmeticCircuit,
         components::ArithGate,
-        types::{ArithNode, CrtLen, CrtRepr, Fp, ToCrtRepr, TypeError},
+        types::{ArithNode, CrtLen, CrtRepr, ToCrtRepr, TypeError},
         utils::PRIMES,
     },
     BuilderError, Feed,
@@ -56,7 +56,7 @@ impl ArithmeticCircuitBuilder {
     /// Add proj gate
     // TODO: maybe we don't need builder state. just put everything under builder
     // TODO: should return Result?
-    pub fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
+    pub fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<u16>) -> ArithNode<Feed> {
         let mut state = self.state.borrow_mut();
         state.add_proj_gate(x, tt)
     }
@@ -123,7 +123,7 @@ impl ArithBuilderState {
     }
 
     /// Add CMUL gate to a circuit
-    pub(crate) fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: Fp) -> ArithNode<Feed> {
+    pub(crate) fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: u32) -> ArithNode<Feed> {
         let out = self.add_feed(x.modulus());
         let gate = ArithGate::Cmul {
             x: x.into(),
@@ -160,7 +160,7 @@ impl ArithBuilderState {
 
     /// Add PROJ gate to a circuit
     #[allow(dead_code)]
-    pub(crate) fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<Fp>) -> ArithNode<Feed> {
+    pub(crate) fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<u16>) -> ArithNode<Feed> {
         // check if the number of tt rows are equal to x's modulus
 
         let out = self.add_feed(x.modulus());

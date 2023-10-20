@@ -4,7 +4,7 @@ use crate::Feed;
 use crate::arithmetic::{
     builder::ArithBuilderState,
     circuit::ArithCircuitError,
-    types::{ArithNode, CrtRepr, Fp, TypeError},
+    types::{ArithNode, CrtRepr, TypeError},
     utils::is_same_crt_len,
 };
 
@@ -77,7 +77,7 @@ pub fn mul(
 }
 
 /// Multiply crt value by constant value.
-pub fn cmul(state: &mut ArithBuilderState, x: &CrtRepr, c: Fp) -> CrtRepr {
+pub fn cmul(state: &mut ArithBuilderState, x: &CrtRepr, c: u32) -> CrtRepr {
     match x {
         CrtRepr::Bool(xval) => {
             let z = state.add_cmul_gate(&xval.nodes()[0], c);
@@ -101,7 +101,7 @@ mod tests {
         arithmetic::{
             builder::ArithmeticCircuitBuilder,
             components::ArithGate,
-            types::{ArithNode, CrtRepr, Fp},
+            types::{ArithNode, CrtRepr},
             utils::PRIMES,
         },
         Feed, Sink,
@@ -182,7 +182,7 @@ mod tests {
     fn test_cmul() {
         let builder = ArithmeticCircuitBuilder::default();
         let x = builder.add_input::<u32>().unwrap();
-        let c = Fp(5);
+        let c = 5;
 
         let z = cmul(&mut builder.state().borrow_mut(), &x, c);
 

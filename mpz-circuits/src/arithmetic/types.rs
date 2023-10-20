@@ -88,14 +88,6 @@ impl From<&ArithNode<Sink>> for ArithNode<Feed> {
     }
 }
 
-/// Field value type.
-/// T must implement field operations
-/// Should we fix field size for now?
-/// FIXME: make Fp generic for any field point?
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Fp(pub u32);
-
 /// Crt representation type.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[allow(missing_docs)]
