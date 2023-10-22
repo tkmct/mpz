@@ -141,7 +141,7 @@ impl IntoIterator for ArithmeticCircuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::arithmetic::{builder::ArithmeticCircuitBuilder, ops::*};
+    use crate::arithmetic::{builder::ArithmeticCircuitBuilder, ops::*, types::ToCrtRepr};
 
     #[test]
     fn test_evaluate() {
@@ -166,19 +166,22 @@ mod tests {
         assert_eq!(res, vec![24]);
     }
 
-    // #[test]
-    // fn test_evaluate_proj() {
-    //     let mut builder = ArithmeticCircuitBuilder::new();
-    //
-    //     let x = builder.add_input::<u32>().unwrap();
-    //     let tt: Vec<Fp> = vec![Fp(1), Fp(2)];
-    //     let out = builder.add_proj_gate(&x, tt);
-    //     builder.add_output(&out);
-    //
-    //     let circ = builder.build().unwrap();
-    //
-    //     let values = vec![Fp(0)];
-    //     let res = circ.evaluate(&values).unwrap();
-    //     assert_eq!(res, vec![Fp(1)]);
-    // }
+    #[test]
+    fn test_evaluate_proj() {
+        let builder = ArithmeticCircuitBuilder::new();
+
+        let x = builder.add_input::<bool>().unwrap();
+        let tt: Vec<u16> = vec![1, 2];
+        let node = x.iter().next().unwrap();
+
+        let out_node = builder.state().borrow_mut().add_proj_gate(node, tt);
+        let out_rep = bool::new_crt_repr(&[out_node]).unwrap();
+        builder.add_output(&out_rep);
+
+        let circ = builder.build().unwrap();
+
+        let values = vec![0];
+        let res = circ.evaluate(&values).unwrap();
+        assert_eq!(res, vec![1]);
+    }
 }

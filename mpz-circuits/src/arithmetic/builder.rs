@@ -159,7 +159,6 @@ impl ArithBuilderState {
     }
 
     /// Add PROJ gate to a circuit
-    #[allow(dead_code)]
     pub(crate) fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<u16>) -> ArithNode<Feed> {
         // check if the number of tt rows are equal to x's modulus
 

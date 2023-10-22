@@ -224,6 +224,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     low_labels[z.id()] = Some(cmul_label(&x_0, *c as u64));
                 }
                 ArithGate::Mul { .. } => {
+                    // handle set of operations
                     todo!()
                 }
                 ArithGate::Proj { .. } => {
