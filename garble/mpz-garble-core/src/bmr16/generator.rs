@@ -8,12 +8,13 @@ use mpz_circuits::arithmetic::{
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
     hash::Hash,
+    Block,
 };
 
 use crate::{
-    circuit::EncryptedGate,
+    circuit::ArithEncryptedGate,
     encoding::{
-        add_label, cmul_label, crt_encoding_state, output_tweak, CrtDecoding, CrtDelta,
+        add_label, cmul_label, crt_encoding_state, output_tweak, tweak2, CrtDecoding, CrtDelta,
         EncodedCrtValue, LabelModN,
     },
 };
@@ -42,7 +43,7 @@ pub struct BMR16Generator<const N: usize> {
     /// Current position in the circuit
     pos: usize,
     /// Current gate id. needed for streaming.
-    _gid: usize,
+    gid: usize,
     /// Hasher to use to hash the encrypted gates
     hasher: Option<Hasher>,
 }
@@ -79,7 +80,7 @@ impl<const N: usize> BMR16Generator<N> {
             deltas,
             low_labels,
             pos: 0,
-            _gid: 1,
+            gid: 1,
             hasher,
         })
     }
@@ -188,7 +189,7 @@ impl<const N: usize> BMR16Generator<N> {
 impl<const N: usize> Iterator for BMR16Generator<N> {
     // FIXME: encryted gate for arithmetic gate depends on the number of wire
     // How to represent set of wires?
-    type Item = EncryptedGate;
+    type Item = ArithEncryptedGate;
 
     // NOTE: calculate label for each gate. if the gate is free, just update label feeds(low_labels)
     // returns the encrypted truth table if the gate needs truth table. (MUL and PROJ)
@@ -223,9 +224,125 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     // set zero label for z
                     low_labels[z.id()] = Some(cmul_label(&x_0, *c as u64));
                 }
-                ArithGate::Mul { .. } => {
-                    // handle set of operations
-                    todo!()
+                ArithGate::Mul {
+                    x: node_x,
+                    y: node_y,
+                    z: node_z,
+                } => {
+                    let gate_num = self.gid;
+                    self.gid += 1;
+
+                    let x = low_labels
+                        .get(node_x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+
+                    let y = low_labels
+                        .get(node_y.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+
+                    debug_assert_eq!(node_x.modulus(), node_y.modulus());
+
+                    // TODO: swap based on modulus size
+                    // if node_x.modulus() < node_y.modulus() {
+                    //     std::mem::swap(&mut x, &mut y);
+                    // }
+
+                    let q_x = node_x.modulus();
+                    let q_y = node_y.modulus();
+
+                    let d_x = self.deltas.get(&q_x).expect("deltas should be set.");
+                    let d_y = self.deltas.get(&q_y).expect("deltas should be set.");
+
+                    // prepare empty block array as gate encoding
+                    let mut gate = vec![Block::new([0; 16]); q_x as usize + q_y as usize - 2];
+
+                    // TODO: add color method to wire
+                    let r = y.color();
+
+                    // convert (u64, u64) to Block
+                    let g = tweak2(gate_num as u64, 0);
+
+                    // X = H(A+aD) + arD such that a + A.color == 0
+                    let alpha = (q_x - x.color()) % q_x; // alpha = -A.color
+                    let x1 = add_label(&x, &cmul_label(d_x, alpha as u64));
+
+                    //
+                    // // Y = H(B + bD) + (b + r)A such that b + B.color == 0
+                    let beta = (q_y - y.color()) % q_y;
+                    let y1 = add_label(&y, &cmul_label(d_y, beta as u64));
+
+                    let x_enc = self.cipher.tccr(g, x1.to_block());
+                    let y_enc = self.cipher.tccr(g, y1.to_block());
+
+                    let x_enc_label = add_label(
+                        &LabelModN::from_block(x_enc, q_x),
+                        &cmul_label(d_x, (alpha as u64 * r as u64) % q_x as u64),
+                    );
+                    let y_enc_label = add_label(
+                        &LabelModN::from_block(y_enc, q_x),
+                        &cmul_label(&x, (beta as u64 + r as u64) % q_x as u64),
+                    );
+
+                    // precompute a lookup table of X.minus(&D_cmul[(a * r % q)])
+                    //                            = X.plus(&D_cmul[((q - (a * r % q)) % q)])
+                    let mut precomp = Vec::with_capacity(q_x as usize);
+                    let mut t = x_enc_label.clone();
+                    precomp.push(t.to_block());
+                    for _ in 1..q_x {
+                        t = add_label(&t, d_x);
+                        precomp.push(t.to_block())
+                    }
+
+                    // We can vectorize the hashes here too, but then we need to precompute all `q` sums of A
+                    // with delta [A, A + D, A + D + D, etc.]
+                    // Would probably need another alloc which isn't great
+                    let mut t = x.clone();
+                    for a in 0..q_x {
+                        if a > 0 {
+                            t = add_label(&t, d_x);
+                        }
+
+                        // garbler's half-gate: outputs X-arD
+                        // G = H(A+aD) ^ X+a(-r)D = H(A+aD) ^ X-arD
+                        if t.color() != 0 {
+                            gate[t.color() as usize - 1] = self.cipher.tccr(g, t.to_block())
+                                ^ precomp[((q_x - (a * r % q_x)) % q_x) as usize]
+                        }
+                    }
+                    precomp.clear();
+
+                    // precompute a lookup table of Y.minus(&A_cmul[((b+r) % q)])
+                    //                            = Y.plus(&A_cmul[((q - ((b+r) % q)) % q)])
+                    let mut t = y_enc_label.clone();
+                    precomp.push(t.to_block());
+                    for _ in 1..q_x {
+                        t = add_label(&t, &x);
+                        precomp.push(t.to_block())
+                    }
+
+                    // Same note about vectorization as A
+                    let mut t = y.clone();
+                    for b in 0..q_y {
+                        if b > 0 {
+                            t = add_label(&t, d_y);
+                        }
+                        // evaluator's half-gate: outputs Y-(b+r)D
+                        // G = H(B+bD) + Y-(b+r)A
+                        if t.color() != 0 {
+                            gate[q_x as usize - 1 + t.color() as usize - 1] =
+                                self.cipher.tccr(g, t.to_block())
+                                    ^ precomp[((q_x - ((b + r) % q_x)) % q_x) as usize];
+                        }
+                    }
+
+                    self.low_labels[node_z.id()] = Some(add_label(&x_enc_label, &y_enc_label));
+
+                    // return encrypted mul gate
+                    return Some(ArithEncryptedGate::new(gate));
                 }
                 ArithGate::Proj { .. } => {
                     todo!()
@@ -243,7 +360,7 @@ mod tests {
     use mpz_circuits::{arithmetic::ops::add, ArithmeticCircuit, ArithmeticCircuitBuilder};
 
     use super::BMR16Generator;
-    use crate::{encoding::ChaChaCrtEncoder, EncryptedGate};
+    use crate::{encoding::ChaChaCrtEncoder, ArithEncryptedGate};
 
     fn adder_circ() -> ArithmeticCircuit {
         let builder = ArithmeticCircuitBuilder::default();
@@ -271,7 +388,7 @@ mod tests {
             .collect();
 
         let mut gen = BMR16Generator::<10>::new(Arc::new(circ), deltas, encoded_inputs).unwrap();
-        let enc_gates: Vec<EncryptedGate> = gen.by_ref().collect();
+        let enc_gates: Vec<ArithEncryptedGate> = gen.by_ref().collect();
 
         assert!(gen.is_complete());
         assert_eq!(enc_gates.len(), mul_count);

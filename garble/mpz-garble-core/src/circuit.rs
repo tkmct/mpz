@@ -43,3 +43,16 @@ pub struct GarbledCircuit {
     /// Encoding commitments of the circuit outputs
     pub commitments: Option<Vec<EncodingCommitment>>,
 }
+/// Encrypted gate truth table for arithmetic gate
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArithEncryptedGate(pub(crate) Vec<Block>);
+
+impl ArithEncryptedGate {
+    pub(crate) fn new(inner: Vec<Block>) -> Self {
+        Self(inner)
+    }
+
+    pub(crate) fn get(&self, i: usize) -> Option<&Block> {
+        self.0.get(i)
+    }
+}

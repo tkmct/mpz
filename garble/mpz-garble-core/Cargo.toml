@@ -27,6 +27,7 @@ serde_arrays.workspace = true
 thiserror.workspace = true
 derive_builder.workspace = true
 itybity.workspace = true
+bytemuck.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

@@ -1,3 +1,4 @@
+use bytemuck::cast;
 use std::collections::HashMap;
 
 use rand::{CryptoRng, Rng, SeedableRng};
@@ -108,9 +109,23 @@ impl LabelModN {
         Self::from_block(block, modulus)
     }
 
+    /// generate random delta label
+    pub fn random_delta<R: Rng + CryptoRng + ?Sized>(rng: &mut R, modulus: u16) -> Self {
+        let mut r = Self::random(rng, modulus);
+        r.inner[0] = 1;
+        r
+    }
+
     /// Iterate over inner vec
     pub fn iter(&self) -> Box<dyn Iterator<Item = &u16> + '_> {
         Box::new(self.inner.iter())
+    }
+
+    /// Return color digit of the label
+    pub fn color(&self) -> u16 {
+        let color = self.inner[0];
+        debug_assert!(color < self.modulus);
+        color
     }
 }
 
@@ -225,7 +240,7 @@ impl<const N: usize> ChaChaCrtEncoder<N> {
         rng.set_stream(DELTA_STREAM_ID);
         let mut deltas = HashMap::new();
         PRIMES.iter().take(N).for_each(|p| {
-            deltas.insert(*p, CrtDelta::random(&mut rng, *p));
+            deltas.insert(*p, CrtDelta::random_delta(&mut rng, *p));
         });
 
         Self { seed, deltas }
@@ -281,7 +296,13 @@ impl CrtDecoding {
     }
 }
 
+// Following codes are based on swanky
 pub(crate) fn output_tweak(i: usize, k: u16) -> Block {
     let (left, _) = (i as u128).overflowing_shl(64);
     Block::from((left + k as u128).to_le_bytes())
+}
+
+pub(crate) fn tweak2(i: u64, j: u64) -> Block {
+    let a = [i, j];
+    Block::new(cast::<[u64; 2], [u8; 16]>(a))
 }

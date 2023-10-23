@@ -29,7 +29,7 @@ use mpz_core::Block;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub(crate) use crt::{add_label, cmul_label, output_tweak, CrtDecoding, DecodeError};
+pub(crate) use crt::{add_label, cmul_label, output_tweak, tweak2, CrtDecoding, DecodeError};
 pub use crt::{
     state as crt_encoding_state, ChaChaCrtEncoder, CrtDelta, EncodedCrtValue, LabelModN,
     Labels as CrtLabels,

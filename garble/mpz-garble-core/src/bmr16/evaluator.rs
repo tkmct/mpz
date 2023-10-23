@@ -4,9 +4,9 @@ use std::sync::Arc;
 use blake3::Hasher;
 
 use crate::{
-    circuit::EncryptedGate,
+    circuit::ArithEncryptedGate,
     encoding::{
-        add_label, cmul_label, crt_encoding_state, output_tweak, CrtDecoding, DecodeError,
+        add_label, cmul_label, crt_encoding_state, output_tweak, tweak2, CrtDecoding, DecodeError,
         EncodedCrtValue, LabelModN,
     },
 };
@@ -45,7 +45,7 @@ pub struct BMR16Evaluator<const N: usize> {
     /// Current position in the circuit
     pos: usize,
     /// Current gate id. needed for streaming
-    _gid: usize,
+    gid: usize,
     /// Whether the evaluator is finished
     complete: bool,
     /// Hasher to use to hash the encrypted gates
@@ -80,7 +80,7 @@ impl<const N: usize> BMR16Evaluator<N> {
             circ,
             active_labels,
             pos: 0,
-            _gid: 1,
+            gid: 1,
             complete: false,
             hasher,
         })
@@ -127,7 +127,10 @@ impl<const N: usize> BMR16Evaluator<N> {
     }
 
     /// Evaluate garbled circuit.
-    pub fn evaluate<'a>(&mut self, _encrypted_gates: impl Iterator<Item = &'a EncryptedGate>) {
+    pub fn evaluate<'a>(
+        &mut self,
+        mut encrypted_gates: impl Iterator<Item = &'a ArithEncryptedGate>,
+    ) {
         let labels = &mut self.active_labels;
 
         while self.pos < self.circ.gates().len() {
@@ -163,8 +166,85 @@ impl<const N: usize> BMR16Evaluator<N> {
 
                     labels[node_z.id()] = Some(cmul_label(&x, *c as u64));
                 }
-                ArithGate::Mul { .. } => {
-                    todo!()
+                ArithGate::Mul {
+                    x: node_x,
+                    y: node_y,
+                    z: node_z,
+                } => {
+                    if let Some(gate) = encrypted_gates.next() {
+                        let x = labels
+                            .get(node_x.id())
+                            .expect("label index out of range")
+                            .clone()
+                            .expect("zero label should be set.");
+
+                        let y = labels
+                            .get(node_y.id())
+                            .expect("label index out of range")
+                            .clone()
+                            .expect("zero label should be set.");
+
+                        debug_assert_eq!(node_x.modulus(), node_y.modulus());
+
+                        // TODO: swap based on modulus size
+                        // if node_x.modulus() < node_y.modulus() {
+                        //     std::mem::swap(&mut x, &mut y);
+                        // }
+
+                        let q_x = node_x.modulus();
+                        let q_y = node_y.modulus();
+
+                        // let unequal = q_x != q_y;
+                        // let ngates = q_x as usize + q_y as usize - 2 + unequal as usize;
+
+                        let gate_num = self.gid;
+                        self.gid += 1;
+                        let g = tweak2(gate_num as u64, 0);
+
+                        // let [hashA, hashB] = hash_wires([A, B], g);
+                        let x_enc = self.cipher.tccr(g, x.to_block());
+                        let y_enc = self.cipher.tccr(g, y.to_block());
+
+                        // garbler's half gate
+                        let l = if x.color() == 0 {
+                            LabelModN::from_block(x_enc, q_x)
+                            // Wire::hash_to_mod(x_enc, q_x)
+                        } else {
+                            let ct_left = gate
+                                .get(x.color() as usize - 1)
+                                .expect("gate should be received");
+                            LabelModN::from_block(*ct_left ^ x_enc, q_x)
+                        };
+
+                        // evaluator's half gate
+                        let r = if y.color() == 0 {
+                            LabelModN::from_block(y_enc, q_x)
+                        } else {
+                            let ct_right = gate
+                                .get((q_x + y.color()) as usize - 2)
+                                .expect("gate should be received");
+                            LabelModN::from_block(*ct_right ^ y_enc, q_x)
+                        };
+
+                        // // hack for unequal mods
+                        // // TODO: Batch this with original hash if unequal.
+                        // let new_b_color = if unequal {
+                        //     let minitable = *gate.last().unwrap();
+                        //     let ct = u128::from(minitable) >> (B.color() * 16);
+                        //     let pt = u128::from(B.hash(tweak2(gate_num as u64, 1))) ^ ct;
+                        //     pt as u16
+                        // } else {
+                        //     B.color()
+                        // };
+                        //
+
+                        labels[node_z.id()] = Some(add_label(
+                            &l,
+                            &add_label(&r, &cmul_label(&x, y.color() as u64)),
+                        ));
+                    } else {
+                        return;
+                    }
                 }
                 ArithGate::Proj { .. } => {
                     todo!()
