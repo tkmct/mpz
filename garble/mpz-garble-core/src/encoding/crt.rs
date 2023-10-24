@@ -302,6 +302,10 @@ pub(crate) fn output_tweak(i: usize, k: u16) -> Block {
     Block::from((left + k as u128).to_le_bytes())
 }
 
+pub(crate) fn tweak(i: usize) -> Block {
+    Block::from(cast::<u64, [u8; 16]>(i as u64))
+}
+
 pub(crate) fn tweak2(i: u64, j: u64) -> Block {
     let a = [i, j];
     Block::new(cast::<[u64; 2], [u8; 16]>(a))

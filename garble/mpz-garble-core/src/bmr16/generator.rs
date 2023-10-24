@@ -14,8 +14,8 @@ use mpz_core::{
 use crate::{
     circuit::ArithEncryptedGate,
     encoding::{
-        add_label, cmul_label, crt_encoding_state, output_tweak, tweak2, CrtDecoding, CrtDelta,
-        EncodedCrtValue, LabelModN,
+        add_label, cmul_label, crt_encoding_state, output_tweak, tweak, tweak2, CrtDecoding,
+        CrtDelta, EncodedCrtValue, LabelModN,
     },
 };
 
@@ -344,8 +344,85 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     // return encrypted mul gate
                     return Some(ArithEncryptedGate::new(gate));
                 }
-                ArithGate::Proj { .. } => {
-                    todo!()
+                ArithGate::Proj {
+                    x: node_x,
+                    tt,
+                    z: node_z,
+                } => {
+                    // let tt = tt.ok_or(GarblerError::TruthTableRequired)?;
+                    let x_low = low_labels
+                        .get(node_x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+
+                    let q_in = node_x.modulus();
+                    let q_out = node_z.modulus();
+
+                    let mut gate = vec![Block::new([0; 16]); q_in as usize - 1];
+                    let tao = x_low.color();
+
+                    let gate_num = self.gid;
+                    self.gid += 1;
+
+                    let g = tweak(gate_num);
+                    let d_in = self.deltas.get(&q_in).expect("delta should be set.");
+                    let d_out = self.deltas.get(&q_out).expect("delta should be set");
+
+                    // output zero-wire
+                    // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
+                    // TODO: more readable
+                    let z_low = add_label(
+                        &LabelModN::from_block(
+                            self.cipher.tccr(
+                                g,
+                                add_label(
+                                    &x_low,
+                                    &cmul_label(d_in, (q_in as u64 - tao as u64) % q_in as u64),
+                                )
+                                .to_block(),
+                            ),
+                            q_out,
+                        ),
+                        &cmul_label(
+                            d_out,
+                            (q_out as u64 - tt[((q_in - tao) % q_in) as usize] as u64)
+                                % q_out as u64,
+                        ),
+                    );
+
+                    // precompute `let C_ = C.plus(&Dout.cmul(tt[x as usize]))`
+                    let z_precomputed = {
+                        let mut z_tmp = z_low.clone();
+                        (0..q_out)
+                            .map(|x| {
+                                if x > 0 {
+                                    z_tmp = add_label(&z_tmp, d_out);
+                                }
+                                z_tmp.to_block()
+                            })
+                            .collect::<Vec<Block>>()
+                    };
+
+                    let mut x_tmp = x_low.clone();
+                    for x in 0..q_in {
+                        if x > 0 {
+                            x_tmp = add_label(&x_tmp, d_in); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+                        }
+
+                        let ix = (tao as usize + x as usize) % q_in as usize;
+                        if ix == 0 {
+                            continue;
+                        }
+
+                        let ct = self.cipher.tccr(g, x_tmp.to_block())
+                            ^ z_precomputed[tt[x as usize] as usize];
+                        gate[ix - 1] = ct;
+                    }
+
+                    low_labels[node_z.id()] = Some(z_low);
+
+                    return Some(ArithEncryptedGate::new(gate));
                 }
             }
         }

@@ -6,8 +6,8 @@ use blake3::Hasher;
 use crate::{
     circuit::ArithEncryptedGate,
     encoding::{
-        add_label, cmul_label, crt_encoding_state, output_tweak, tweak2, CrtDecoding, DecodeError,
-        EncodedCrtValue, LabelModN,
+        add_label, cmul_label, crt_encoding_state, output_tweak, tweak, tweak2, CrtDecoding,
+        DecodeError, EncodedCrtValue, LabelModN,
     },
 };
 
@@ -246,8 +246,39 @@ impl<const N: usize> BMR16Evaluator<N> {
                         return;
                     }
                 }
-                ArithGate::Proj { .. } => {
-                    todo!()
+                ArithGate::Proj {
+                    x: node_x,
+                    tt,
+                    z: node_z,
+                } => {
+                    let q = node_z.modulus();
+
+                    if let Some(gate) = encrypted_gates.next() {
+                        let gate_num = self.gid;
+                        self.gid += 1;
+                        let t = tweak(gate_num);
+
+                        let x = labels
+                            .get(node_x.id())
+                            .expect("label index out of range")
+                            .clone()
+                            .expect("label should be initialized");
+
+                        if x.color() == 0 {
+                            let hash = self.cipher.tccr(t, x.to_block());
+                            labels[node_z.id()] = Some(LabelModN::from_block(hash, q));
+                        } else {
+                            let ct = gate
+                                .get(x.color() as usize - 1)
+                                .expect("gate should be received.");
+                            labels[node_z.id()] = Some(LabelModN::from_block(
+                                *ct ^ self.cipher.tccr(t, x.to_block()),
+                                q,
+                            ));
+                        }
+                    } else {
+                        return;
+                    }
                 }
             }
             self.pos += 1;
