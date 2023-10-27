@@ -870,7 +870,10 @@ impl CircomRuntime {
     pub fn new () -> CircomRuntime {
         CircomRuntime { last_var_id: 0, call_stack: Vec::new() }
     }
-    pub fn init (&self) {
+    pub fn init (&mut self) {
+        let mut rc = RuntimeContext::new(0, 1);
+        rc.init(self);
+        self.call_stack.push(rc);
 
     }
     pub fn get_current_runtime_context (&mut self) -> &mut RuntimeContext {
@@ -1001,19 +1004,32 @@ impl ArithmeticCircuit {
 
     //We support ADD, MUL, CADD, CMUL, DIV, CDIV, CINVERT, IFTHENELSE, FOR
 
-    pub fn add_gate(
-        &mut self, 
-        output: &ArithmeticVar,
-        lhs: &ArithmeticVar,
-        rhs: &ArithmeticVar,
+    pub fn add_gate (
+        &mut self,
+        output_name: &String,
+        output_id: u32,
+        lhs_id: u32,
+        rhs_id: u32,
         gate_type: AGateType) {
+            self.gate_count += 1;
+            self.add_var(output_id, output_name);
+            let node = ArithmeticNode::new(self.gate_count, gate_type, lhs_id, rhs_id, output_id);
+            self.gates.insert(self.gate_count, node);
+        }
 
-        self.gate_count += 1;
-        let node = ArithmeticNode::new(self.gate_count, gate_type, lhs.var_id, rhs.var_id, output.var_id);
+    // pub fn add_gate(
+    //     &mut self, 
+    //     output: &ArithmeticVar,
+    //     lhs: &ArithmeticVar,
+    //     rhs: &ArithmeticVar,
+    //     gate_type: AGateType) {
 
-        self.gates.insert(self.gate_count, node);
+    //     self.gate_count += 1;
+    //     let node = ArithmeticNode::new(self.gate_count, gate_type, lhs.var_id, rhs.var_id, output.var_id);
 
-    }
+    //     self.gates.insert(self.gate_count, node);
+
+    // }
 
     pub fn print_ac(&mut self) {
         for (ank, anv) in self.gates.iter() {
@@ -1037,11 +1053,10 @@ fn traverse_infix_op (
     let rhsvar_id = runtime.get_var_from_current_context(input_rhs);
     let var_id = runtime.assign_var_to_current_context(output);
 
-    let var = ac.add_var(var_id, &output);
-    let var2 = ac.add_var(var_id, &output);
+    // let var = ac.add_var(var_id, &output);
 
-    let lvar = ac.get_var(lhsvar_id);
-    let rvar = ac.get_var(rhsvar_id);
+    // let lvar = ac.get_var(lhsvar_id);
+    // let rvar = ac.get_var(rhsvar_id);
     
 
     let mut gate_type = AGateType::AAdd;
@@ -1089,7 +1104,7 @@ fn traverse_infix_op (
         }
     };
 
-    ac.add_gate(var, lvar, rvar, gate_type);
+    ac.add_gate(&output, var_id, lhsvar_id, rhsvar_id, gate_type);
 
 }
 
