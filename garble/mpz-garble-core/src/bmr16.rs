@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn test_garble_add_circ() {
         const BATCH_SIZE: usize = 1000;
-        let encoder = ChaChaCrtEncoder::<10>::new([0; 32]);
+        let encoder = ChaChaCrtEncoder::new([0; 32], 10);
         let circ = adder_circ::<u32>();
 
         let a_val = 3;
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn test_garble_mul_circuit() {
         const BATCH_SIZE: usize = 1000;
-        let encoder = ChaChaCrtEncoder::<10>::new([0; 32]);
+        let encoder = ChaChaCrtEncoder::new([0; 32], 10);
         let circ = mul_circ();
 
         let a_val = 20;

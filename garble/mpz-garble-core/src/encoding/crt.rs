@@ -225,21 +225,23 @@ impl From<Vec<LabelModN>> for EncodedCrtValue<state::Active> {
 }
 
 /// Chacha encoder for CRT representation
-pub struct ChaChaCrtEncoder<const N: usize> {
+pub struct ChaChaCrtEncoder {
     seed: [u8; 32],
     deltas: HashMap<u16, CrtDelta>,
 }
 
-impl<const N: usize> ChaChaCrtEncoder<N> {
+impl ChaChaCrtEncoder {
     /// Create new encoder for CRT labels with provided seed.
-    pub fn new(seed: [u8; 32]) -> Self {
+    /// * `seed` - seed value of encoder
+    /// * `num_wire` - maximum number of wires used in circuit
+    pub fn new(seed: [u8; 32], num_wire: usize) -> Self {
         let mut rng = ChaCha20Rng::from_seed(seed);
 
         // Stream id u64::MAX is reserved to generate delta.
         // This way there is only ever 1 delta per seed
         rng.set_stream(DELTA_STREAM_ID);
         let mut deltas = HashMap::new();
-        PRIMES.iter().take(N).for_each(|p| {
+        PRIMES.iter().take(num_wire).for_each(|p| {
             deltas.insert(*p, CrtDelta::random_delta(&mut rng, *p));
         });
 

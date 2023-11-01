@@ -452,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_bmr16_generator() {
-        let encoder = ChaChaCrtEncoder::<10>::new([0; 32]);
+        let encoder = ChaChaCrtEncoder::new([0; 32], 10);
 
         let circ = adder_circ();
         let deltas = HashMap::new();
