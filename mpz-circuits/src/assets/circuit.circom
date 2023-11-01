@@ -5,10 +5,13 @@ pragma circom 2.0.0;
 template Multiplier2 () {  
 
    // Declaration of signals 
+   signal input garb_z[10];  
+
    signal input garb_a;  
    signal input eval_b;  
    var i;
    signal output c;  
+   
 
    // Computation  
    // i <== garb_a + eval_b;
@@ -25,10 +28,10 @@ template Multiplier2 () {
 
    // var t = i * j;
    // c <== garb_a * t;
-
+   i = garb_z[1];
    i = garb_a + eval_b;
    i = garb_a * eval_b;
-   i = garb_a + 100;
+   i = garb_a + 101;
    i = eval_b * 20;
    c <== i * i;
 }

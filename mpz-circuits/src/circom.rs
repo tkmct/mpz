@@ -25,7 +25,7 @@ use circom_constraint_generation::FlagsExecution;
 use circom_parser;
 use circom_compiler::compiler_interface;
 use circom_compiler::compiler_interface::{Config, VCP};
-use circom_program_structure::{error_code::ReportCode, ast::{Expression, Statement, SignalType, VariableType, ExpressionInfixOpcode, Meta}};
+use circom_program_structure::{error_code::ReportCode, ast::{Expression, Statement, SignalType, VariableType, ExpressionInfixOpcode, Meta, Access}};
 use circom_program_structure::error_definition::Report;
 use circom_program_structure::file_definition::FileLibrary;
 use circom_constraint_writers::debug_writer::DebugWriter;
@@ -254,7 +254,7 @@ const JSON: &'static str = "json";
 impl Input {
     pub fn default() -> Result<Input, ()> {
        let input = Input { 
-        input_program: PathBuf::from("/Users/namncc/Documents/GitHub/mpz/mpz-circuits/src/assets/circuit.circom"),
+        input_program: PathBuf::from("/Users/namncc/Documents/GitHub/mpz-pg/mpz-circuits/src/assets/circuit.circom"),
         out_r1cs: PathBuf::from("./assets/tmp"),
         out_json_constraints: PathBuf::from("./assets/tmp"),
         out_wat_code: PathBuf::from("./assets/tmp"),
@@ -1138,6 +1138,17 @@ fn traverse_expression (
         ParallelOp { meta, rhe } => todo!(),
         Variable { meta, name, access } => {
             println!("Variable found {}", name.to_string());
+            for a in access.iter() {
+                match a {
+                    Access::ArrayAccess(expr) => {
+                        println!("Array access found");
+                        traverse_expression(ac, runtime, var, expr, program_archive);
+                    },
+                    Access::ComponentAccess(name) => {
+                        println!("Component access found");
+                    }
+                }
+            }
             name.to_string()
         },
         Call { meta, id, args } => {
@@ -1146,10 +1157,26 @@ fn traverse_expression (
             id.to_string()
         },
         AnonymousComp { meta, id, is_parallel, params, signals, names } => todo!(),
-        ArrayInLine { meta, values } => todo!(),
+        ArrayInLine { meta, values } => {
+            println!("ArrayInLine found");
+            var.to_string()
+        },
         Tuple { meta, values } => todo!(),
-        UniformArray { meta, value, dimension } => todo!(),
+        UniformArray { meta, value, dimension } => {
+            println!("UniformArray found");
+            var.to_string()
+        },
     }
+}
+
+fn traverse_component_declaration (
+    ac: &mut ArithmeticCircuit,
+    runtime: &mut CircomRuntime,
+    comp_name: &str
+) {
+    // let var_id = runtime.assign_var_to_current_context(&var_name.to_string());
+    // ac.add_var(var_id, comp_name.to_string().as_str());
+    println!("Found component {}", comp_name);
 }
 
 fn traverse_signal_declaration (
@@ -1191,6 +1218,7 @@ fn traverse_statement (
             }
         }
         Declaration { meta, xtype, name, dimensions, .. } => {
+            println!("Declaration of {}", name);
             match xtype {
                 // VariableType::AnonymousComponent => {
                 //     execute_anonymous_component_declaration(
@@ -1228,12 +1256,14 @@ fn traverse_statement (
                     //         )?
                     //     };
                     match xtype {
-                        // VariableType::Component => execute_component_declaration(
-                        //     name,
-                        //     &usable_dimensions,
-                        //     &mut runtime.environment,
-                        //     actual_node,
-                        // ),
+                        VariableType::Component => traverse_component_declaration(
+                            ac,
+                            runtime,
+                            name,
+                            // &usable_dimensions,
+                            // &mut runtime.environment,
+                            // actual_node
+                        ),
                         VariableType::Var => traverse_variable_declaration(
                             ac,
                             runtime,
@@ -1369,6 +1399,16 @@ fn traverse_statement (
             
         }
         Substitution { meta, var, access, op, rhe, .. } => {
+            for a in access.iter() {
+                match a {
+                    Access::ArrayAccess(expr) => {
+                        traverse_expression(ac, runtime, var, expr, program_archive);
+                    },
+                    Access::ComponentAccess(name) => {
+                        println!("Component access not handled");
+                    }
+                }
+            }
             let rhs = traverse_expression(ac, runtime, var, rhe, program_archive);
             println!("Assigning {} to {}", rhs, var);
         }
