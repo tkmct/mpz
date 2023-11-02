@@ -940,6 +940,10 @@ impl CircomRuntime {
 
     }
 
+    pub fn end_context (&mut self) {
+        self.call_stack.pop();
+    }
+
     pub fn get_current_runtime_context_id (&mut self) -> u32 {
         self.call_stack.last().unwrap().context_id
     }
