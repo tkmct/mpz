@@ -1058,12 +1058,12 @@ fn traverse_infix_op (
     // let lvar = ac.get_var(lhsvar_id);
     // let rvar = ac.get_var(rhsvar_id);
     
-
+    use ExpressionInfixOpcode::*;
     let mut gate_type = AGateType::AAdd;
     match infixop {
         Mul => {
             println!("Mul op {} = {} * {}", output, input_lhs, input_rhs);
-            gate_type = AGateType::AAdd;               
+            gate_type = AGateType::AMul;               
         }
         Div => {
             println!("Div op {} = {} / {}", output, input_lhs, input_rhs);
@@ -1071,7 +1071,7 @@ fn traverse_infix_op (
         },
         Add => {
             println!("Add op {} = {} + {}", output, input_lhs, input_rhs);
-            gate_type = AGateType::AMul; 
+            gate_type = AGateType::AAdd; 
         },
         Sub => {
             println!("Sub op {} = {} - {}", output, input_lhs, input_rhs);
