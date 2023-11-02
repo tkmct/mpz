@@ -889,6 +889,17 @@ impl CircomRuntime {
         let current = self.get_current_runtime_context();
         current.assign_var(var, var_id)
     }
+
+    pub fn assign_auto_var_to_current_context (&mut self) -> String {
+        self.last_var_id += 1;
+        let var_id = self.last_var_id;
+        let current = self.get_current_runtime_context();
+        let var = format!("auto_var_{}", var_id);
+        current.assign_var(&var, var_id);
+        println!("Auto var {}", var);
+        var
+    }
+
 }
 
 pub struct ArithmeticVar {
@@ -1125,8 +1136,10 @@ fn traverse_expression (
             value.to_string()
         },
         InfixOp { meta, lhe, infix_op, rhe, .. } => {
-            let varlop = traverse_expression(ac, runtime, var, lhe, program_archive);
-            let varrop = traverse_expression(ac, runtime, var, rhe, program_archive);
+            let varlhs = runtime.assign_auto_var_to_current_context();
+            let varrhs = runtime.assign_auto_var_to_current_context();
+            let varlop = traverse_expression(ac, runtime, &varlhs, lhe, program_archive);
+            let varrop = traverse_expression(ac, runtime, &varrhs, rhe, program_archive);
             traverse_infix_op(ac, runtime, var, &varlop, &varrop, *infix_op);
             var.to_string()
         }
