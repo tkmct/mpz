@@ -821,7 +821,8 @@ pub enum ParseError {
 pub struct RuntimeContext {
     pub caller_id: u32,
     pub context_id: u32,
-    pub vars: HashMap<String, u32>
+    pub vars: HashMap<String, u32>,
+    pub execution: RuntimeExecutionContext
 }
 
 impl RuntimeContext {
@@ -839,7 +840,62 @@ impl RuntimeContext {
     }
 
     pub fn new (_caller_id: u32, _context_id: u32) -> RuntimeContext {
-        RuntimeContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new() }
+        RuntimeContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new(), execution: RuntimeExecutionContext::new(_caller_id, _context_id)}
+    }
+
+    pub fn init (&mut self, runtime: &CircomRuntime) {
+        for context in runtime.call_stack.iter() {
+            for (k, v) in context.vars.iter() {
+                self.vars.insert(k.to_string(), v.to_u32().unwrap());
+            }
+            for (k, v) in context.execution.vars.iter() {
+                self.execution.vars.insert(k.to_string(), v.to_u32().unwrap());
+            }
+        }
+    }
+
+    pub fn assign_var (&mut self, var_name: &String, last_var_id: u32) -> u32 {
+        self.vars.insert(var_name.to_string(), last_var_id);
+        self.execution.assign_var_val(var_name, 0);
+        last_var_id
+    }
+
+    pub fn assign_var_val(&mut self, var_name: &String, var_val: u32) -> u32 {
+        self.execution.vars.insert(var_name.to_string(), var_val);
+        var_val
+    }
+
+    pub fn get_var(&self, var_name: &String) -> u32 {
+        *self.vars.get(var_name).unwrap()
+    }
+
+    pub fn get_var_val(&self, var_name: &String) -> u32 {
+        *self.execution.vars.get(var_name).unwrap()
+    }
+}
+
+pub struct RuntimeExecutionContext {
+    pub caller_id: u32,
+    pub context_id: u32,
+    pub vars: HashMap<String, u32>
+}
+
+impl RuntimeExecutionContext {
+
+    pub fn caller_id (&self) -> u32 {
+        self.caller_id
+    }
+
+    pub fn context_id (&self) -> u32 {
+        self.context_id
+    }
+
+    pub fn vars (&self) -> &HashMap<String, u32> {
+        &self.vars
+    }
+
+    pub fn new (_caller_id: u32, _context_id: u32) -> RuntimeExecutionContext {
+        RuntimeExecutionContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new() }
     }
 
     pub fn init (&mut self, runtime: &CircomRuntime) {
@@ -850,12 +906,12 @@ impl RuntimeContext {
         }
     }
 
-    pub fn assign_var (&mut self, var_name: &String, last_var_id: u32) -> u32 {
-        self.vars.insert(var_name.to_string(), last_var_id);
-        last_var_id
+    pub fn assign_var_val (&mut self, var_name: &String, var_val: u32) -> u32 {
+        self.vars.insert(var_name.to_string(), var_val);
+        var_val
     }
 
-    pub fn get_var(&self, var_name: &String) -> u32 {
+    pub fn get_var_val (&self, var_name: &String) -> u32 {
         *self.vars.get(var_name).unwrap()
     }
 }
@@ -876,6 +932,18 @@ impl CircomRuntime {
         self.call_stack.push(rc);
 
     }
+
+    pub fn new_context (&mut self) {
+        let mut rc = RuntimeContext::new(self.get_current_runtime_context_id(), self.get_current_runtime_context_id() + 1);
+        rc.init(self);
+        self.call_stack.push(rc);
+
+    }
+
+    pub fn get_current_runtime_context_id (&mut self) -> u32 {
+        self.call_stack.last().unwrap().context_id
+    }
+
     pub fn get_current_runtime_context (&mut self) -> &mut RuntimeContext {
         self.call_stack.last_mut().unwrap()
     }
@@ -888,6 +956,14 @@ impl CircomRuntime {
         let var_id = self.last_var_id;
         let current = self.get_current_runtime_context();
         current.assign_var(var, var_id)
+    }
+    pub fn get_var_val_from_current_context (&mut self, var: &String) -> u32 {
+        let current = self.get_current_runtime_context();
+        current.get_var_val(var)
+    }
+    pub fn assign_var_val_to_current_context (&mut self, var: &String, var_val: u32) -> u32 {
+        let current = self.get_current_runtime_context();
+        current.assign_var_val(var, var_val)
     }
 
     pub fn assign_auto_var_to_current_context (&mut self) -> String {
@@ -1065,6 +1141,94 @@ impl ArithmeticCircuit {
 
 //WIP HERE
 
+fn execute_infix_op (
+    ac: &mut ArithmeticCircuit,
+    runtime: &mut CircomRuntime,
+    output: &String,
+    input_lhs: &String,
+    input_rhs: &String,
+    infixop: ExpressionInfixOpcode
+) -> u32 {
+    // let current = runtime.get_current_runtime_context();
+    let lhsvar_val = runtime.get_var_val_from_current_context(input_lhs);
+    let rhsvar_val = runtime.get_var_val_from_current_context(input_rhs);
+    let var_id = runtime.assign_var_to_current_context(output);
+
+    // let var = ac.add_var(var_id, &output);
+
+    // let lvar = ac.get_var(lhsvar_id);
+    // let rvar = ac.get_var(rhsvar_id);
+
+    let mut res = 0;
+    
+    use ExpressionInfixOpcode::*;
+    let mut gate_type = AGateType::AAdd;
+    match infixop {
+        Mul => {
+            println!("Mul op {} = {} * {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::AMul;    
+            res = lhsvar_val * rhsvar_val;           
+        }
+        Div => {
+            println!("Div op {} = {} / {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::ADiv;
+            res = lhsvar_val / rhsvar_val;
+        },
+        Add => {
+            println!("Add op {} = {} + {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::AAdd; 
+            res = lhsvar_val + rhsvar_val;
+        },
+        Sub => {
+            println!("Sub op {} = {} - {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::ASub; 
+            res = lhsvar_val - rhsvar_val;
+        },
+        // Pow => {},
+        // IntDiv => {},
+        // Mod => {},
+        // ShiftL => {},
+        // ShiftR => {},
+        LesserEq => {
+            println!("LesserEq op {} = {} <= {}", output, input_lhs, input_rhs);
+            res = if lhsvar_val <= rhsvar_val { 1 } else { 0 };
+        },
+        GreaterEq => {
+            println!("GreaterEq op {} = {} >= {}", output, input_lhs, input_rhs);
+            res = if lhsvar_val >= rhsvar_val { 1 } else { 0 };
+        },
+        Lesser => {
+            println!("Lesser op {} = {} < {}", output, input_lhs, input_rhs);
+            res = if lhsvar_val < rhsvar_val { 1 } else { 0 };
+        },
+        Greater => {
+            println!("Greater op {} = {} > {}", output, input_lhs, input_rhs);
+            res = if lhsvar_val > rhsvar_val { 1 } else { 0 };
+        },
+        Eq => {
+            println!("Eq op {} = {} == {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::AEq;  
+            res = if lhsvar_val == rhsvar_val { 1 } else { 0 };
+        },
+        NotEq => {
+            println!("Neq op {} = {} != {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::ANeq; 
+            res = if lhsvar_val != rhsvar_val { 1 } else { 0 };
+        },
+        // BoolOr => {},
+        // BoolAnd => {},
+        // BitOr => {},
+        // BitAnd => {},
+        // BitXor => {},
+        _ => {
+            unreachable!()
+        }
+    };
+    res
+    // ac.add_gate(&output, var_id, lhsvar_id, rhsvar_id, gate_type);
+
+}
+
 fn traverse_infix_op (
     ac: &mut ArithmeticCircuit,
     runtime: &mut CircomRuntime,
@@ -1131,6 +1295,76 @@ fn traverse_infix_op (
 
     ac.add_gate(&output, var_id, lhsvar_id, rhsvar_id, gate_type);
 
+}
+
+fn execute_expression (
+    ac: &mut ArithmeticCircuit,
+    runtime: &mut CircomRuntime,
+    var: &String,
+    expr: &Expression,
+    program_archive: &ProgramArchive
+) -> String {
+
+    use Expression::*;
+    // let mut can_be_simplified = true;
+    match expr {
+        Number(_, value) => {
+            let var_id = runtime.assign_var_to_current_context(&value.to_string());
+            ac.add_const_var(var_id, value.to_u32().unwrap());
+            value.to_string()
+        },
+        InfixOp { meta, lhe, infix_op, rhe, .. } => {
+            let varlhs = runtime.assign_auto_var_to_current_context();
+            let varrhs = runtime.assign_auto_var_to_current_context();
+            let varlop = execute_expression(ac, runtime, &varlhs, lhe, program_archive);
+            let varrop = execute_expression(ac, runtime, &varrhs, rhe, program_archive);
+            let res = execute_infix_op(ac, runtime, var, &varlop, &varrop, *infix_op);
+            res.to_string()
+        }
+        PrefixOp { meta, prefix_op, rhe } => {
+            println!("Prefix found ");
+            var.to_string()
+        },
+        InlineSwitchOp { meta, cond, if_true, if_false } => todo!(),
+        ParallelOp { meta, rhe } => todo!(),
+        Variable { meta, name, access } => {
+            let mut name_access = String::from(name);
+            println!("Variable found {}", name.to_string());
+            for a in access.iter() {
+                match a {
+                    Access::ArrayAccess(expr) => {
+                        println!("Array access found");
+                        // let mut dim_u32_vec = Vec::new();
+                        let dim_u32_str = 
+                            traverse_expression(ac, runtime, var, expr, program_archive);
+                        // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
+                        name_access.push_str("_");
+                        name_access.push_str(dim_u32_str.as_str());
+                        println!("Change var name to {}", name_access);
+                    },
+                    Access::ComponentAccess(name) => {
+                        println!("Component access found");
+                    }
+                }
+            }
+            name_access.to_string()
+        },
+        Call { meta, id, args } => {
+            println!("Call found {}", id.to_string());
+            // find the template and execute it
+            id.to_string()
+        },
+        AnonymousComp { meta, id, is_parallel, params, signals, names } => todo!(),
+        ArrayInLine { meta, values } => {
+            println!("ArrayInLine found");
+            var.to_string()
+        },
+        Tuple { meta, values } => todo!(),
+        UniformArray { meta, value, dimension } => {
+            println!("UniformArray found");
+            var.to_string()
+        },
+    }
 }
 
 fn traverse_expression (
@@ -1395,9 +1629,17 @@ fn traverse_statement (
         //     }
         },
         While { cond, stmt, .. } => loop {
+            let var = String::from("while");
+            let res = execute_expression(ac, runtime, &var, cond, program_archive);
+            println!("res = {}", res);
+            traverse_statement(ac, runtime, stmt, program_archive);
+            if res.contains("0") {
+                break;
+            }
+            // traverse_expression(ac, runtime, var, cond, program_archive);
             // let var = String::from("while");
             // ac.add_var(&var, SignalType::Intermediate);
-            // let lhs = traverse_expression(ac, &var, cond, program_archive);
+            // let lhs = traverse_expression(ac, runtime, &var, cond, program_archive);
             // println!("While cond {}", lhs);
             // traverse_statement(ac, stmt, program_archive);
         },
@@ -1480,7 +1722,7 @@ fn traverse_statement (
         LogCall { args, .. } => {
         }
         UnderscoreSubstitution{ meta, rhe, op} =>{
-            
+            println!("UnderscoreSubstitution found");
         }
         _ =>{
             unimplemented!()
