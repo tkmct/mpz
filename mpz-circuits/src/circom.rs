@@ -900,7 +900,7 @@ impl CircomRuntime {
         var
     }
 
-    pub fn assign_array_var_to_current_context (&mut self, var: &String, indice: Vec<u32>) -> String {
+    pub fn assign_array_var_to_current_context (&mut self, var: &String, indice: Vec<u32>) -> (String, u32) {
         self.last_var_id += 1;
         let var_id = self.last_var_id;
         let current = self.get_current_runtime_context();
@@ -911,7 +911,7 @@ impl CircomRuntime {
         let var = format!("{}{}", var, access_index);
         current.assign_var(&var, var_id);
         println!("Array var {}", var);
-        var
+        (var, var_id)
     }
 
 }
@@ -1164,19 +1164,26 @@ fn traverse_expression (
         InlineSwitchOp { meta, cond, if_true, if_false } => todo!(),
         ParallelOp { meta, rhe } => todo!(),
         Variable { meta, name, access } => {
+            let mut name_access = String::from(name);
             println!("Variable found {}", name.to_string());
             for a in access.iter() {
                 match a {
                     Access::ArrayAccess(expr) => {
                         println!("Array access found");
-                        traverse_expression(ac, runtime, var, expr, program_archive);
+                        // let mut dim_u32_vec = Vec::new();
+                        let dim_u32_str = 
+                            traverse_expression(ac, runtime, var, expr, program_archive);
+                        // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
+                        name_access.push_str("_");
+                        name_access.push_str(dim_u32_str.as_str());
+                        println!("Change var name to {}", name_access);
                     },
                     Access::ComponentAccess(name) => {
                         println!("Component access found");
                     }
                 }
             }
-            name.to_string()
+            name_access.to_string()
         },
         Call { meta, id, args } => {
             println!("Call found {}", id.to_string());
@@ -1227,13 +1234,23 @@ fn traverse_variable_declaration (
         let var_id = runtime.assign_var_to_current_context(&var_name.to_string());
         ac.add_var(var_id, var_name.to_string().as_str());
     } else {
-        let mut all_accesses = Vec::new();
-        for u32s in dim_u32_vec.iter() {
-            let mut accesses = Vec::new();
-            for i in 0..*u32s {
-                accesses.push(i);
-            }
-            all_accesses.push(accesses);
+        // let mut all_accesses = Vec::new();
+        // for u32s in dim_u32_vec.iter() {
+        //     let mut accesses = Vec::new();
+        //     for i in 0..*u32s {
+        //         accesses.push(i);
+        //     }
+        //     all_accesses.push(accesses);
+        // }
+        // for accesses in all_accesses.iter() {
+
+        // }
+        let dim_u32 = *dim_u32_vec.last().unwrap();
+        for i in 0..dim_u32 {
+            let mut u32vec = Vec::new();
+            u32vec.push(i);
+            let (var, var_id) = runtime.assign_array_var_to_current_context(&var_name.to_string(), u32vec);
+            ac.add_var(var_id, var.as_str());
         }
     }
 }

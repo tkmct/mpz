@@ -20,7 +20,7 @@ template InnerProd () {
    // sum = sum2;
 
    var sum = 0;
-   sum = sum + input_A[0] * input_B[0];
+   sum = sum + input_A[3] * input_B[8];
 
    ip <== sum;
 
