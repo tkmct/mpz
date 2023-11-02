@@ -900,6 +900,20 @@ impl CircomRuntime {
         var
     }
 
+    pub fn assign_array_var_to_current_context (&mut self, var: &String, indice: Vec<u32>) -> String {
+        self.last_var_id += 1;
+        let var_id = self.last_var_id;
+        let current = self.get_current_runtime_context();
+        let mut access_index = String::new();
+        for i in 0..indice.len() {
+            access_index.push_str(&format!("_{}", indice[i]));
+        }
+        let var = format!("{}{}", var, access_index);
+        current.assign_var(&var, var_id);
+        println!("Array var {}", var);
+        var
+    }
+
 }
 
 pub struct ArithmeticVar {
@@ -1185,7 +1199,8 @@ fn traverse_expression (
 fn traverse_component_declaration (
     ac: &mut ArithmeticCircuit,
     runtime: &mut CircomRuntime,
-    comp_name: &str
+    comp_name: &str,
+    dim_u32_vec: &Vec<u32>
 ) {
     // let var_id = runtime.assign_var_to_current_context(&var_name.to_string());
     // ac.add_var(var_id, comp_name.to_string().as_str());
@@ -1196,18 +1211,31 @@ fn traverse_signal_declaration (
     ac: &mut ArithmeticCircuit,
     runtime: &mut CircomRuntime,
     signal_name: &str,
-    signal_type: SignalType
+    signal_type: SignalType,
+    dim_u32_vec: &Vec<u32>
 ) {
-    traverse_variable_declaration(ac, runtime, signal_name);
+    traverse_variable_declaration(ac, runtime, signal_name, dim_u32_vec);
 }
 
 fn traverse_variable_declaration (
     ac: &mut ArithmeticCircuit,
     runtime: &mut CircomRuntime,
-    var_name: &str
+    var_name: &str,
+    dim_u32_vec: &Vec<u32>
 ) {
-    let var_id = runtime.assign_var_to_current_context(&var_name.to_string());
-    ac.add_var(var_id, var_name.to_string().as_str());
+    if dim_u32_vec.is_empty() {
+        let var_id = runtime.assign_var_to_current_context(&var_name.to_string());
+        ac.add_var(var_id, var_name.to_string().as_str());
+    } else {
+        let mut all_accesses = Vec::new();
+        for u32s in dim_u32_vec.iter() {
+            let mut accesses = Vec::new();
+            for i in 0..*u32s {
+                accesses.push(i);
+            }
+            all_accesses.push(accesses);
+        }
+    }
 }
 
 fn traverse_statement (
@@ -1243,13 +1271,12 @@ fn traverse_statement (
                 //     );
                 // }
                 _ => {
-                    // let mut arithmetic_values = Vec::new();
-                    // for dimension in dimensions.iter() {
-                    //     let f_dimensions = 
-                    //         execute_expression(dimension, program_archive, runtime, flags)?;
-                    //     arithmetic_values
-                    //         .push(safe_unwrap_to_single_arithmetic_expression(f_dimensions, line!()));
-                    // }
+                    let mut dim_u32_vec = Vec::new();
+                    for dimension in dimensions.iter() {
+                        let dim_u32_str = 
+                            traverse_expression(ac, runtime, name, dimension, program_archive);
+                        dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
+                    }
                     // treat_result_with_memory_error_void(
                     //     valid_array_declaration(&arithmetic_values),
                     //     meta,
@@ -1273,20 +1300,25 @@ fn traverse_statement (
                             ac,
                             runtime,
                             name,
-                            // &usable_dimensions,
+                            &dim_u32_vec
+                            // &usable_dimensions
                             // &mut runtime.environment,
                             // actual_node
                         ),
                         VariableType::Var => traverse_variable_declaration(
                             ac,
                             runtime,
-                            name
+                            name,
+                            &dim_u32_vec
+                            // &usable_dimensions
                         ),
                         VariableType::Signal(signal_type, tag_list) => traverse_signal_declaration (
                             ac,
                             runtime,
                             name,
-                            *signal_type
+                            *signal_type,
+                            &dim_u32_vec
+                            // &usable_dimensions
                         ),
                         _ =>{
                             unreachable!()
