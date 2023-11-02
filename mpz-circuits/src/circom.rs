@@ -846,9 +846,10 @@ impl RuntimeContext {
     pub fn init (&mut self, runtime: &CircomRuntime) {
         for context in runtime.call_stack.iter() {
             for (k, v) in context.vars.iter() {
-                self.vars.insert(k.to_string(), v.to_u32().unwrap());
+                self.assign_var(k, *v);
             }
             for (k, v) in context.execution.vars.iter() {
+                self.execution(var_name, last_var_id)
                 self.execution.vars.insert(k.to_string(), v.to_u32().unwrap());
             }
         }
@@ -856,12 +857,12 @@ impl RuntimeContext {
 
     pub fn assign_var (&mut self, var_name: &String, last_var_id: u32) -> u32 {
         self.vars.insert(var_name.to_string(), last_var_id);
-        self.execution.assign_var_val(var_name, 0);
+        self.execution.assign_var(var_name);
         last_var_id
     }
 
     pub fn assign_var_val(&mut self, var_name: &String, var_val: u32) -> u32 {
-        self.execution.vars.insert(var_name.to_string(), var_val);
+        self.execution.assign_var_val(var_name, var_val);
         var_val
     }
 
@@ -877,7 +878,8 @@ impl RuntimeContext {
 pub struct RuntimeExecutionContext {
     pub caller_id: u32,
     pub context_id: u32,
-    pub vars: HashMap<String, u32>
+    pub vars: HashMap<String, u32>,
+    pub exevars: HashMap<String, u32>
 }
 
 impl RuntimeExecutionContext {
@@ -894,25 +896,40 @@ impl RuntimeExecutionContext {
         &self.vars
     }
 
+    pub fn exevars(&self) -> &HashMap<String, u32> {
+        &self.exevars
+    }
+
     pub fn new (_caller_id: u32, _context_id: u32) -> RuntimeExecutionContext {
-        RuntimeExecutionContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new() }
+        RuntimeExecutionContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new(), exevars: HashMap::new() }
     }
 
     pub fn init (&mut self, runtime: &CircomRuntime) {
         for context in runtime.call_stack.iter() {
             for (k, v) in context.vars.iter() {
                 self.vars.insert(k.to_string(), v.to_u32().unwrap());
+                self.exevars.insert(k.to_string(), 0);
             }
         }
     }
 
+    pub fn assign_var (&mut self, var_name: &String) -> u32 {
+        self.vars.insert(var_name.to_string(), 0);
+        0
+    }
+
     pub fn assign_var_val (&mut self, var_name: &String, var_val: u32) -> u32 {
         self.vars.insert(var_name.to_string(), var_val);
+        self.exevars.insert(var_name.to_string(), 1);
         var_val
     }
 
     pub fn get_var_val (&self, var_name: &String) -> u32 {
         *self.vars.get(var_name).unwrap()
+    }
+
+    pub fn can_get_var_val(&self, var_name: &String) -> u32 {
+        *self.exevars.get(var_name).unwrap()
     }
 }
 
