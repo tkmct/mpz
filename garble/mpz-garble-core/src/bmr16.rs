@@ -10,7 +10,7 @@ mod tests {
 
     use crate::{
         bmr16::{evaluator::*, generator::*},
-        encoding::{crt_encoding_state, ChaChaCrtEncoder, EncodedCrtValue},
+        encoding::{crt_encoding_state, ChaChaCrtEncoder, CrtDecoding, EncodedCrtValue},
     };
     use mpz_circuits::{
         arithmetic::{
@@ -20,6 +20,7 @@ mod tests {
         },
         ArithmeticCircuit, ArithmeticCircuitBuilder,
     };
+    use mpz_core::aes::FIXED_KEY_AES;
 
     fn adder_circ<T: CrtLen + ToCrtRepr>() -> ArithmeticCircuit {
         let builder = ArithmeticCircuitBuilder::default();
@@ -79,8 +80,8 @@ mod tests {
         .unwrap();
 
         let active_inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>> = vec![
-            gen.select(&full_inputs[0], a),
-            gen.select(&full_inputs[1], b),
+            full_inputs[0].select(encoder.deltas(), a),
+            full_inputs[1].select(encoder.deltas(), b),
         ];
 
         let mut ev = BMR16Evaluator::<10>::new(Arc::new(circ.clone()), active_inputs).unwrap();
@@ -101,7 +102,17 @@ mod tests {
 
         assert_eq!(gen_digest, ev_digest);
 
-        let decodings = gen.decodings().unwrap();
+        let gen_outputs = gen.outputs();
+        let deltas = encoder.deltas();
+
+        let decodings = gen
+            .outputs()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(idx, output)| output.decoding(idx, deltas, &FIXED_KEY_AES))
+            .collect::<Vec<CrtDecoding>>();
+
         let outputs = ev.decode_outputs(decodings);
 
         assert!(outputs.is_ok());
@@ -144,8 +155,8 @@ mod tests {
         .unwrap();
 
         let active_inputs: Vec<EncodedCrtValue<crt_encoding_state::Active>> = vec![
-            gen.select(&full_inputs[0], a),
-            gen.select(&full_inputs[1], b),
+            full_inputs[0].select(encoder.deltas(), a),
+            full_inputs[1].select(encoder.deltas(), b),
         ];
 
         let mut ev = BMR16Evaluator::<10>::new(Arc::new(circ.clone()), active_inputs).unwrap();
@@ -166,7 +177,15 @@ mod tests {
 
         assert_eq!(gen_digest, ev_digest);
 
-        let decodings = gen.decodings().unwrap();
+        let deltas = encoder.deltas();
+        let decodings = gen
+            .outputs()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(idx, output)| output.decoding(idx, deltas, &FIXED_KEY_AES))
+            .collect::<Vec<CrtDecoding>>();
+
         let outputs = ev.decode_outputs(decodings);
 
         assert!(outputs.is_ok());

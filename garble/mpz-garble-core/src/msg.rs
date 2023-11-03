@@ -4,7 +4,9 @@ use mpz_core::{commit::Decommitment, hash::Hash};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    circuit::EncryptedGate, encoding_state, Decoding, Delta, EncodedValue, EncodingCommitment,
+    circuit::EncryptedGate,
+    encoding::{crt_encoding_state, CrtDecoding, EncodedCrtValue},
+    encoding_state, ArithEncryptedGate, Decoding, Delta, EncodedValue, EncodingCommitment,
     EqualityCheck,
 };
 
@@ -26,4 +28,7 @@ pub enum GarbleMessage {
     ProofDecommitments(Vec<Decommitment<Hash>>),
     Delta(Delta),
     EncoderSeed(Vec<u8>),
+    ArithEncryptedGates(Vec<ArithEncryptedGate>),
+    CrtValueDecodings(Vec<CrtDecoding>),
+    ActiveCrtValues(Vec<EncodedCrtValue<crt_encoding_state::Active>>),
 }

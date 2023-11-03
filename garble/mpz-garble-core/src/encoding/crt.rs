@@ -1,11 +1,13 @@
 use bytemuck::cast;
-use std::collections::HashMap;
 
+use mpz_core::aes::FixedKeyAes;
 use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
+use serde::{Deserialize, Serialize};
 
 use mpz_circuits::arithmetic::{
-    utils::{digits_per_u128, is_power_of_2, PRIMES},
+    types::CrtValueType,
+    utils::{digits_per_u128, get_index_of_prime, is_power_of_2, PRIMES},
     TypeError,
 };
 
@@ -56,7 +58,7 @@ pub(crate) fn cmul_label(x: &LabelModN, c: u64) -> LabelModN {
 /// Label is represented by vector of elements in Z_n.
 /// Length of the label is defined by security parameter λ
 /// λ_m = floor(λ/log_m)
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LabelModN {
     /// inner representation of the label
     inner: Vec<u16>,
@@ -129,6 +131,12 @@ impl LabelModN {
     }
 }
 
+impl Default for LabelModN {
+    fn default() -> Self {
+        LabelModN::new(vec![], 0)
+    }
+}
+
 /// Delta for generalized Free-XOR
 pub type CrtDelta = LabelModN;
 
@@ -136,17 +144,19 @@ pub type CrtDelta = LabelModN;
 /// TODO: because we don't keep delta inside state, there might be better way to express
 /// label state rather than using struct. we can just use enum?
 pub mod state {
+    use serde::{Deserialize, Serialize};
+
     /// Label state trait
     pub trait LabelState: std::marker::Copy {}
 
     /// Full state
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
     pub struct Full {}
 
     impl LabelState for Full {}
 
     /// Active state
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
     pub struct Active {}
 
     impl LabelState for Active {}
@@ -156,7 +166,7 @@ use state::*;
 
 /// Set of labels.
 /// This struct corresponds to one CrtValue
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Labels<S: LabelState> {
     _state: S,
     labels: Vec<LabelModN>,
@@ -191,7 +201,7 @@ impl Labels<state::Active> {
 }
 
 /// Encoded CRT Value.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncodedCrtValue<S: LabelState>(Labels<S>);
 
 impl<S: LabelState> EncodedCrtValue<S> {
@@ -210,6 +220,57 @@ impl<S: LabelState> EncodedCrtValue<S> {
     pub(crate) fn get_label(&self, i: usize) -> Option<&LabelModN> {
         self.0.inner().get(i)
     }
+
+    /// Returns decoding info of this value
+    pub fn decoding(&self, idx: usize, deltas: &[CrtDelta], cipher: &FixedKeyAes) -> CrtDecoding {
+        let hashes = self
+            .iter()
+            .enumerate()
+            .map(|(i, x)| {
+                let q = PRIMES[i];
+                let d =
+                    get_delta_by_modulus(deltas, q).expect("delta should be set for given prime");
+
+                (0..q)
+                    .map(|k| {
+                        let label = add_label(x, &cmul_label(&d, k as u64));
+                        let tweak = output_tweak(idx, k);
+                        LabelModN::from_block(cipher.tccr(tweak, label.to_block()), q)
+                    })
+                    .collect::<Vec<LabelModN>>()
+            })
+            .collect();
+
+        CrtDecoding::new(hashes)
+    }
+}
+
+impl EncodedCrtValue<state::Full> {
+    /// Create active label from values.
+    /// Each value corresponds to labels.
+    ///
+    /// # Arguments
+    ///
+    /// - `values` - The actual values for individual modulus from which encoded crt value is created.
+    pub fn select(&self, deltas: &[CrtDelta], values: Vec<u16>) -> EncodedCrtValue<state::Active> {
+        let active_labels: Vec<LabelModN> = values
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                let q = PRIMES[i];
+                let d =
+                    get_delta_by_modulus(deltas, q).expect("Delta should be set for given prime");
+
+                add_label(
+                    // TODO: not use unwrap here
+                    self.get_label(i).unwrap(),
+                    &cmul_label(&d, *v as u64),
+                )
+            })
+            .collect();
+
+        EncodedCrtValue::<state::Active>::from(active_labels)
+    }
 }
 
 impl From<Vec<LabelModN>> for EncodedCrtValue<state::Full> {
@@ -225,12 +286,12 @@ impl From<Vec<LabelModN>> for EncodedCrtValue<state::Active> {
 }
 
 /// Chacha encoder for CRT representation
-pub struct ChaChaCrtEncoder {
+pub struct ChaChaCrtEncoder<const N: usize> {
     seed: [u8; 32],
-    deltas: HashMap<u16, CrtDelta>,
+    deltas: [CrtDelta; N],
 }
 
-impl ChaChaCrtEncoder {
+impl<const N: usize> ChaChaCrtEncoder<N> {
     /// Create new encoder for CRT labels with provided seed.
     /// * `seed` - seed value of encoder
     /// * `num_wire` - maximum number of wires used in circuit
@@ -240,10 +301,8 @@ impl ChaChaCrtEncoder {
         // Stream id u64::MAX is reserved to generate delta.
         // This way there is only ever 1 delta per seed
         rng.set_stream(DELTA_STREAM_ID);
-        let mut deltas = HashMap::new();
-        PRIMES.iter().take(num_wire).for_each(|p| {
-            deltas.insert(*p, CrtDelta::random_delta(&mut rng, *p));
-        });
+        let deltas: [CrtDelta; N] =
+            std::array::from_fn(|i| CrtDelta::random_delta(&mut rng, PRIMES[i]));
 
         Self { seed, deltas }
     }
@@ -267,8 +326,17 @@ impl ChaChaCrtEncoder {
     }
 
     /// Returns list of deltas used in a circuit.
-    pub fn deltas(&self) -> &HashMap<u16, CrtDelta> {
+    pub fn deltas(&self) -> &[CrtDelta; N] {
         &self.deltas
+    }
+
+    /// create encoded labels based on given type
+    pub fn encode_by_type(&self, id: u64, ty: CrtValueType) -> EncodedCrtValue<state::Full> {
+        match ty {
+            CrtValueType::Bool => self.encode_by_len(id, 1),
+            CrtValueType::U32 => self.encode_by_len(id, 10),
+            _ => panic!("invalid type: {:?}", ty),
+        }
     }
 
     /// create encoded labels
@@ -285,7 +353,7 @@ impl ChaChaCrtEncoder {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrtDecoding(Vec<Vec<LabelModN>>);
 
 impl CrtDecoding {
@@ -311,4 +379,15 @@ pub(crate) fn tweak(i: usize) -> Block {
 pub(crate) fn tweak2(i: u64, j: u64) -> Block {
     let a = [i, j];
     Block::new(cast::<[u64; 2], [u8; 16]>(a))
+}
+
+/// get delta corresponding to the modulus given.
+/// returns None if given value is not prime
+/// panic if the delta doesn't exist for given modulus value
+///
+/// * `deltas` - slice of delta values sorted by size of modulus
+/// * `q` - modulus to get delta
+pub(crate) fn get_delta_by_modulus(deltas: &[CrtDelta], q: u16) -> Option<CrtDelta> {
+    let idx = get_index_of_prime(q)?;
+    Some(deltas[idx].clone())
 }

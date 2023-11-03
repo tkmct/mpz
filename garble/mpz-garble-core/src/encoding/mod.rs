@@ -30,7 +30,8 @@ use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Deserializer, Serialize};
 
 pub(crate) use crt::{
-    add_label, cmul_label, output_tweak, tweak, tweak2, CrtDecoding, DecodeError,
+    add_label, cmul_label, get_delta_by_modulus, output_tweak, tweak, tweak2, CrtDecoding,
+    DecodeError,
 };
 pub use crt::{
     state as crt_encoding_state, ChaChaCrtEncoder, CrtDelta, EncodedCrtValue, LabelModN,

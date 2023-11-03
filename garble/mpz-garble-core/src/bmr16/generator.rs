@@ -1,5 +1,6 @@
 //! BMR16 generator implementation
-use std::{collections::HashMap, sync::Arc};
+use crate::encoding::get_delta_by_modulus;
+use std::sync::Arc;
 
 use blake3::Hasher;
 use mpz_circuits::arithmetic::{
@@ -37,7 +38,7 @@ pub struct BMR16Generator<const N: usize> {
     /// Circuit to genrate a garbled circuit for
     circ: Arc<ArithmeticCircuit>,
     /// Delta values to use while generating the circuit
-    deltas: HashMap<u16, CrtDelta>,
+    deltas: [CrtDelta; N],
     /// The 0 value labels for the garbled circuit
     low_labels: Vec<Option<LabelModN>>,
     /// Current position in the circuit
@@ -53,7 +54,7 @@ impl<const N: usize> BMR16Generator<N> {
     /// encoding of the input labels are done outside.
     pub fn new(
         circ: Arc<ArithmeticCircuit>,
-        deltas: HashMap<u16, CrtDelta>,
+        deltas: [CrtDelta; N],
         inputs: Vec<EncodedCrtValue<crt_encoding_state::Full>>,
     ) -> Result<Self, GeneratorError> {
         let hasher = Some(Hasher::new());
@@ -126,64 +127,6 @@ impl<const N: usize> BMR16Generator<N> {
             Hash::from(hash)
         })
     }
-
-    /// Create active label from values.
-    /// Each value corresponds to labels.
-    pub fn select(
-        &self,
-        encoded_crt_value: &EncodedCrtValue<crt_encoding_state::Full>,
-        values: Vec<u16>,
-    ) -> EncodedCrtValue<crt_encoding_state::Active> {
-        let active_labels: Vec<LabelModN> = values
-            .iter()
-            .enumerate()
-            .map(|(i, v)| {
-                let q = PRIMES[i];
-                let d = self
-                    .deltas
-                    .get(&q)
-                    .expect("Delta should be set for given prime");
-
-                add_label(
-                    // TODO: not use unwrap here
-                    encoded_crt_value.get_label(i).unwrap(),
-                    &cmul_label(d, *v as u64),
-                )
-            })
-            .collect();
-
-        EncodedCrtValue::<crt_encoding_state::Active>::from(active_labels)
-    }
-
-    /// Generate decoding info used to decode outputs of the circuit .
-    pub fn decodings(&self) -> Result<Vec<CrtDecoding>, GeneratorError> {
-        let outputs = self.outputs()?;
-
-        Ok(outputs
-            .iter()
-            .enumerate()
-            .map(|(idx, output)| {
-                let hashes = output
-                    .iter()
-                    .enumerate()
-                    .map(|(i, x)| {
-                        let q = PRIMES[i];
-                        let d = self.deltas.get(&q).unwrap();
-
-                        (0..q)
-                            .map(|k| {
-                                let label = add_label(x, &cmul_label(d, k as u64));
-                                let tweak = output_tweak(idx, k);
-                                LabelModN::from_block(self.cipher.tccr(tweak, label.to_block()), q)
-                            })
-                            .collect::<Vec<LabelModN>>()
-                    })
-                    .collect();
-
-                CrtDecoding::new(hashes)
-            })
-            .collect())
-    }
 }
 
 impl<const N: usize> Iterator for BMR16Generator<N> {
@@ -254,8 +197,10 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     let q_x = node_x.modulus();
                     let q_y = node_y.modulus();
 
-                    let d_x = self.deltas.get(&q_x).expect("deltas should be set.");
-                    let d_y = self.deltas.get(&q_y).expect("deltas should be set.");
+                    let d_x =
+                        get_delta_by_modulus(&self.deltas, q_x).expect("deltas should be set.");
+                    let d_y =
+                        get_delta_by_modulus(&self.deltas, q_y).expect("deltas should be set.");
 
                     // prepare empty block array as gate encoding
                     let mut gate = vec![Block::new([0; 16]); q_x as usize + q_y as usize - 2];
@@ -268,19 +213,19 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
 
                     // X = H(A+aD) + arD such that a + A.color == 0
                     let alpha = (q_x - x.color()) % q_x; // alpha = -A.color
-                    let x1 = add_label(&x, &cmul_label(d_x, alpha as u64));
+                    let x1 = add_label(&x, &cmul_label(&d_x, alpha as u64));
 
                     //
                     // // Y = H(B + bD) + (b + r)A such that b + B.color == 0
                     let beta = (q_y - y.color()) % q_y;
-                    let y1 = add_label(&y, &cmul_label(d_y, beta as u64));
+                    let y1 = add_label(&y, &cmul_label(&d_y, beta as u64));
 
                     let x_enc = self.cipher.tccr(g, x1.to_block());
                     let y_enc = self.cipher.tccr(g, y1.to_block());
 
                     let x_enc_label = add_label(
                         &LabelModN::from_block(x_enc, q_x),
-                        &cmul_label(d_x, (alpha as u64 * r as u64) % q_x as u64),
+                        &cmul_label(&d_x, (alpha as u64 * r as u64) % q_x as u64),
                     );
                     let y_enc_label = add_label(
                         &LabelModN::from_block(y_enc, q_x),
@@ -293,7 +238,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     let mut t = x_enc_label.clone();
                     precomp.push(t.to_block());
                     for _ in 1..q_x {
-                        t = add_label(&t, d_x);
+                        t = add_label(&t, &d_x);
                         precomp.push(t.to_block())
                     }
 
@@ -303,7 +248,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     let mut t = x.clone();
                     for a in 0..q_x {
                         if a > 0 {
-                            t = add_label(&t, d_x);
+                            t = add_label(&t, &d_x);
                         }
 
                         // garbler's half-gate: outputs X-arD
@@ -328,7 +273,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     let mut t = y.clone();
                     for b in 0..q_y {
                         if b > 0 {
-                            t = add_label(&t, d_y);
+                            t = add_label(&t, &d_y);
                         }
                         // evaluator's half-gate: outputs Y-(b+r)D
                         // G = H(B+bD) + Y-(b+r)A
@@ -366,8 +311,12 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     self.gid += 1;
 
                     let g = tweak(gate_num);
-                    let d_in = self.deltas.get(&q_in).expect("delta should be set.");
-                    let d_out = self.deltas.get(&q_out).expect("delta should be set");
+                    // let d_in = self.deltas.get(&q_in).expect("delta should be set.");
+                    // let d_out = self.deltas.get(&q_out).expect("delta should be set");
+                    let d_in =
+                        get_delta_by_modulus(&self.deltas, q_in).expect("deltas should be set.");
+                    let d_out =
+                        get_delta_by_modulus(&self.deltas, q_out).expect("deltas should be set.");
 
                     // output zero-wire
                     // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
@@ -378,14 +327,14 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                                 g,
                                 add_label(
                                     &x_low,
-                                    &cmul_label(d_in, (q_in as u64 - tao as u64) % q_in as u64),
+                                    &cmul_label(&d_in, (q_in as u64 - tao as u64) % q_in as u64),
                                 )
                                 .to_block(),
                             ),
                             q_out,
                         ),
                         &cmul_label(
-                            d_out,
+                            &d_out,
                             (q_out as u64 - tt[((q_in - tao) % q_in) as usize] as u64)
                                 % q_out as u64,
                         ),
@@ -397,7 +346,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                         (0..q_out)
                             .map(|x| {
                                 if x > 0 {
-                                    z_tmp = add_label(&z_tmp, d_out);
+                                    z_tmp = add_label(&z_tmp, &d_out);
                                 }
                                 z_tmp.to_block()
                             })
@@ -407,7 +356,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     let mut x_tmp = x_low.clone();
                     for x in 0..q_in {
                         if x > 0 {
-                            x_tmp = add_label(&x_tmp, d_in); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
+                            x_tmp = add_label(&x_tmp, &d_in); // avoiding expensive cmul for `A_ = A.plus(&Din.cmul(x))`
                         }
 
                         let ix = (tao as usize + x as usize) % q_in as usize;
@@ -432,7 +381,7 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::Arc};
+    use std::sync::Arc;
 
     use mpz_circuits::{arithmetic::ops::add, ArithmeticCircuit, ArithmeticCircuitBuilder};
 
@@ -455,7 +404,7 @@ mod tests {
         let encoder = ChaChaCrtEncoder::new([0; 32], 10);
 
         let circ = adder_circ();
-        let deltas = HashMap::new();
+        let deltas = encoder.deltas();
         let mul_count = circ.mul_count();
 
         let encoded_inputs = circ
@@ -464,7 +413,8 @@ mod tests {
             .map(|inp| encoder.encode_by_len(0, inp.len()))
             .collect();
 
-        let mut gen = BMR16Generator::<10>::new(Arc::new(circ), deltas, encoded_inputs).unwrap();
+        let mut gen =
+            BMR16Generator::<10>::new(Arc::new(circ), deltas.clone(), encoded_inputs).unwrap();
         let enc_gates: Vec<ArithEncryptedGate> = gen.by_ref().collect();
 
         assert!(gen.is_complete());

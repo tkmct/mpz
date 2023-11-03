@@ -196,9 +196,46 @@ impl<const N: usize> CrtValue<N> {
     }
 
     /// Returns the length of moduli array
-    #[allow(dead_code)]
     pub(crate) fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Returns value type of the CrtValue
+    pub fn value_type(&self) -> CrtValueType {
+        let len = self.len();
+        match len {
+            1 => CrtValueType::Bool,
+            10 => CrtValueType::U32,
+            _ => panic!("Not supported type."),
+        }
+    }
+}
+
+/// A crt value type that can be encoded into a binary representation.
+/// This just defines number of wires used to represent a value.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+#[allow(missing_docs)]
+pub enum CrtValueType {
+    Bool,
+    U32,
+}
+
+/// Actual arithmetic value which can be encoded into Crt representation
+#[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
+pub enum ArithValue {
+    Bool(bool),
+    U32(u32),
+}
+
+impl ArithValue {
+    /// Returns CrtValueType of this arith value.
+    pub fn value_type(&self) -> CrtValueType {
+        match self {
+            Self::Bool(_) => CrtValueType::Bool,
+            Self::U32(_) => CrtValueType::U32,
+        }
     }
 }
 

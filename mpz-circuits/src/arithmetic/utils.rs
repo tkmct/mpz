@@ -4,8 +4,10 @@ use std::mem::discriminant;
 
 use crate::arithmetic::{
     circuit::ArithCircuitError,
-    types::{CrtRepr, TypeError},
+    types::{CrtLen, CrtRepr, TypeError},
 };
+
+use super::types::ArithValue;
 
 /// Number of primes supported by our library.
 pub const NPRIMES: usize = 29;
@@ -15,6 +17,12 @@ pub const PRIMES: [u16; 29] = [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
     101, 103, 107, 109,
 ];
+
+/// Returns the index of the given prime in ascending order.
+/// ex. 2 => 0, 7 => 3, ...
+pub fn get_index_of_prime(m: u16) -> Option<usize> {
+    PRIMES.iter().position(|q| *q == m)
+}
 
 /// Check if crt type is equal
 pub(crate) fn is_same_crt_len(a: &CrtRepr, b: &CrtRepr) -> bool {
@@ -121,6 +129,18 @@ pub fn convert_values_to_crts(
                 .collect::<Vec<u16>>()
         })
         .collect::<Vec<Vec<u16>>>())
+}
+
+/// Convert arithmetic value to crt representation.
+pub fn convert_value_to_crt(value: ArithValue) -> Vec<u16> {
+    match value {
+        ArithValue::Bool(v) => vec![v as u16],
+        ArithValue::U32(v) => PRIMES
+            .iter()
+            .take(u32::LEN)
+            .map(|n| (v % (*n as u32)) as u16)
+            .collect::<Vec<u16>>(),
+    }
 }
 
 /// Returns `true` if `x` is a power of 2.

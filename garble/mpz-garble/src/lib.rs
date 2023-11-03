@@ -24,6 +24,8 @@ pub mod protocol;
 mod threadpool;
 pub mod value;
 
+pub mod bmr16;
+
 pub use evaluator::{Evaluator, EvaluatorConfig, EvaluatorConfigBuilder, EvaluatorError};
 pub use generator::{Generator, GeneratorConfig, GeneratorConfigBuilder, GeneratorError};
 pub use memory::{AssignedValues, ValueMemory};
