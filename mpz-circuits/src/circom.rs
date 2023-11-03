@@ -18,7 +18,7 @@ use itertools::Itertools;
 
 const VERSION: &'static str = "2.0.0";
 
-use std::{path::PathBuf, collections::HashMap, hash::Hash, fmt::{Display, self, write}};
+use std::{path::PathBuf, collections::HashMap, hash::Hash, fmt::{Display, self, write}, ptr::null};
 use ansi_term::Colour;
 
 use circom_constraint_generation::FlagsExecution;
@@ -843,20 +843,20 @@ impl RuntimeContext {
         RuntimeContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new(), execution: RuntimeExecutionContext::new(_caller_id, _context_id)}
     }
 
-    pub fn init (&mut self, runtime: &CircomRuntime) {
-        let mut context = runtime.get_runtime_context_by_context_id(self.caller_id);
+    pub fn init (&mut self, runtime: &mut CircomRuntime) {
+        let context = runtime.get_runtime_context_by_context_id(self.caller_id);
         for (k, v) in context.vars.iter() {
             self.assign_var(k, *v);
         }
         self.execution.init(context);
     }
 
-    pub fn return_to_caller(&mut self, runtime: &CircomRuntime) {
-        let mut context = runtime.get_runtime_context_by_context_id(self.caller_id);
+    pub fn return_to_caller(&mut self, runtime: &mut CircomRuntime) {
+        let context = runtime.get_runtime_context_by_context_id(self.caller_id);
         for (k, v) in self.vars.iter() {
             context.assign_var(k, *v);
         }
-        self.execution.return_to_caller(&context);
+        self.execution.return_to_caller(context);
     }
 
     pub fn assign_var (&mut self, var_name: &String, last_var_id: u32) -> u32 {
@@ -908,7 +908,7 @@ impl RuntimeExecutionContext {
         RuntimeExecutionContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new(), exevars: HashMap::new() }
     }
 
-    pub fn init (&mut self, context: &RuntimeContext) {
+    pub fn init (&mut self, context: &mut RuntimeContext) {
         for (k, v) in context.execution.vars.iter() {
             self.assign_var(k);
             if context.execution.can_get_var_val(k) {
@@ -917,7 +917,7 @@ impl RuntimeExecutionContext {
         }
     }
 
-    pub fn return_to_caller(&mut self, context: &RuntimeContext) {
+    pub fn return_to_caller(&mut self, context: &mut RuntimeContext) {
         for (k, v) in self.vars.iter() {
             context.execution.assign_var(k);
             if self.can_get_var_val(k) {
@@ -954,6 +954,7 @@ pub struct CircomRuntime {
 }
 
 impl CircomRuntime {
+
     pub fn new () -> CircomRuntime {
         CircomRuntime { last_var_id: 0, last_context_id: 0, call_stack: Vec::new() }
     }
@@ -982,7 +983,7 @@ impl CircomRuntime {
     }
 
     pub fn end_current_context_return_vars (&mut self) {
-        let mut rc = self.get_current_runtime_context();
+        let rc = self.get_current_runtime_context();
         rc.return_to_caller(self);
         self.call_stack.pop();
     }
@@ -990,7 +991,7 @@ impl CircomRuntime {
     // If first then else, so if 1 context -> if, if 2 contexts -> if else
     // TODO: not handled for now
     pub fn merge_current_branches_return_vars(&mut self) {
-        let mut rc = self.get_current_runtime_context();
+        let rc = self.get_current_runtime_context();
         rc.return_to_caller(self);
         self.call_stack.pop();
     }
@@ -1004,14 +1005,17 @@ impl CircomRuntime {
     }
 
     pub fn get_current_runtime_context_caller (&mut self) -> &mut RuntimeContext {
+
         let caller_id = self.get_current_runtime_context_caller_id();
+        
         for context in self.call_stack.iter_mut() {
             if context.context_id == caller_id {
-                context
+                return context;
             } else {
                 continue;
             }
         }
+
         self.call_stack.last_mut().unwrap()
     }
 
@@ -1022,7 +1026,7 @@ impl CircomRuntime {
     pub fn get_runtime_context_by_context_id(&mut self, cid: u32) -> &mut RuntimeContext {
         for context in self.call_stack.iter_mut() {
             if context.context_id == cid {
-                context
+                return context;
             } else {
                 continue;
             }
