@@ -960,8 +960,8 @@ impl CircomRuntime {
     }
     pub fn init (&mut self) {
         self.last_context_id += 1;
-        let mut rc = RuntimeContext::new(0, self.last_context_id);
-        rc.init(self);
+        let rc = RuntimeContext::new(0, self.last_context_id);
+        // rc.init(self);
         self.call_stack.push(rc);
 
     }
@@ -1008,15 +1008,8 @@ impl CircomRuntime {
 
         let caller_id = self.get_current_runtime_context_caller_id();
         
-        for context in self.call_stack.iter_mut() {
-            if context.context_id == caller_id {
-                return context;
-            } else {
-                continue;
-            }
-        }
-
-        self.call_stack.last_mut().unwrap()
+        self.get_runtime_context_by_context_id(caller_id)
+        
     }
 
     pub fn get_current_runtime_context (&mut self) -> &mut RuntimeContext {
