@@ -18,7 +18,7 @@ use itertools::Itertools;
 
 const VERSION: &'static str = "2.0.0";
 
-use std::{path::PathBuf, collections::HashMap, hash::Hash, fmt::{Display, self, write}, ptr::null};
+use std::{path::PathBuf, collections::HashMap, hash::Hash, fmt::{Display, self, write}, ptr::null, task::Context};
 use ansi_term::Colour;
 
 use circom_constraint_generation::FlagsExecution;
@@ -843,7 +843,7 @@ impl RuntimeContext {
         RuntimeContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new(), execution: RuntimeExecutionContext::new(_caller_id, _context_id)}
     }
 
-    pub fn init (&mut self, runtime: &mut CircomRuntime) {
+    pub fn init (&mut self, runtime: &CircomRuntime) {
         let context = runtime.get_runtime_context_by_context_id(self.caller_id);
         for (k, v) in context.vars.iter() {
             self.assign_var(k, *v);
@@ -851,13 +851,13 @@ impl RuntimeContext {
         self.execution.init(context);
     }
 
-    pub fn return_to_caller(&mut self, runtime: &mut CircomRuntime) {
-        let context = runtime.get_runtime_context_by_context_id(self.caller_id);
-        for (k, v) in self.vars.iter() {
-            context.assign_var(k, *v);
-        }
-        self.execution.return_to_caller(context);
-    }
+    // pub fn return_to_caller(&mut self, runtime: &CircomRuntime) {
+    //     let context = runtime.get_runtime_context_by_context_id(self.caller_id);
+    //     for (k, v) in self.vars.iter() {
+    //         context.assign_var(k, *v);
+    //     }
+    //     self.execution.return_to_caller(context);
+    // }
 
     pub fn assign_var (&mut self, var_name: &String, last_var_id: u32) -> u32 {
         self.vars.insert(var_name.to_string(), last_var_id);
@@ -908,7 +908,7 @@ impl RuntimeExecutionContext {
         RuntimeExecutionContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new(), exevars: HashMap::new() }
     }
 
-    pub fn init (&mut self, context: &mut RuntimeContext) {
+    pub fn init (&mut self, context: &RuntimeContext) {
         for (k, v) in context.execution.vars.iter() {
             self.assign_var(k);
             if context.execution.can_get_var_val(k) {
@@ -917,14 +917,14 @@ impl RuntimeExecutionContext {
         }
     }
 
-    pub fn return_to_caller(&mut self, context: &mut RuntimeContext) {
-        for (k, v) in self.vars.iter() {
-            context.execution.assign_var(k);
-            if self.can_get_var_val(k) {
-                context.execution.assign_var_val(k, *v);
-            }
-        }
-    }
+    // pub fn return_to_caller(&mut self, context: &mut RuntimeContext) {
+    //     for (k, v) in self.vars.iter() {
+    //         context.execution.assign_var(k);
+    //         if self.can_get_var_val(k) {
+    //             context.execution.assign_var_val(k, *v);
+    //         }
+    //     }
+    // }
 
     pub fn assign_var (&mut self, var_name: &String) -> u32 {
         self.vars.insert(var_name.to_string(), 0);
@@ -958,6 +958,34 @@ impl CircomRuntime {
     pub fn new () -> CircomRuntime {
         CircomRuntime { last_var_id: 0, last_context_id: 0, call_stack: Vec::new() }
     }
+
+    pub fn call_stack(&self) -> &Vec<RuntimeContext> {
+        &self.call_stack
+    }
+
+    pub fn get_stack_len(&self) -> usize {
+        self.call_stack.len()
+    }
+
+    pub fn get_runtime_context_index_in_stack_by_context_id(&self, cid: u32) -> usize {
+        let mut index = 0;
+
+        let len = self.get_stack_len();
+        let cs = self.call_stack();
+        
+        for i in 0..len {
+            let c = cs.get(i).unwrap();
+            if c.context_id == cid {
+                index = i;
+            }
+        }
+        index
+    }
+
+    pub fn get_runtime_context_by_stack_index(&self, sidx: usize) -> &RuntimeContext {
+        self.call_stack.get(sidx).unwrap()
+    }
+
     pub fn init (&mut self) {
         self.last_context_id += 1;
         let rc = RuntimeContext::new(0, self.last_context_id);
@@ -982,21 +1010,21 @@ impl CircomRuntime {
 
     }
 
-    pub fn end_current_context_return_vars (&mut self) {
-        let rc = self.get_current_runtime_context();
-        rc.return_to_caller(self);
-        self.call_stack.pop();
-    }
+    // pub fn end_current_context_return_vars (&self) {
+    //     let rc = self.get_current_runtime_context();
+    //     rc.return_to_caller(self);
+    //     self.call_stack.pop();
+    // }
 
     // If first then else, so if 1 context -> if, if 2 contexts -> if else
     // TODO: not handled for now
-    pub fn merge_current_branches_return_vars(&mut self) {
-        let rc = self.get_current_runtime_context();
-        rc.return_to_caller(self);
-        self.call_stack.pop();
-    }
+    // pub fn merge_current_branches_return_vars(&mut self) {
+    //     let rc = self.get_current_runtime_context();
+    //     rc.return_to_caller(self);
+    //     self.call_stack.pop();
+    // }
 
-    pub fn get_current_runtime_context_caller_id (&mut self) -> u32 {
+    pub fn get_current_runtime_context_caller_id (&self) -> u32 {
         self.call_stack.last().unwrap().caller_id
     }
 
@@ -1004,27 +1032,19 @@ impl CircomRuntime {
         self.call_stack.last().unwrap().context_id
     }
 
-    pub fn get_current_runtime_context_caller (&mut self) -> &mut RuntimeContext {
-
+    pub fn get_current_runtime_context_caller (&self) -> &RuntimeContext {
         let caller_id = self.get_current_runtime_context_caller_id();
-        
         self.get_runtime_context_by_context_id(caller_id)
-        
+
     }
 
     pub fn get_current_runtime_context (&mut self) -> &mut RuntimeContext {
         self.call_stack.last_mut().unwrap()
     }
 
-    pub fn get_runtime_context_by_context_id(&mut self, cid: u32) -> &mut RuntimeContext {
-        for context in self.call_stack.iter_mut() {
-            if context.context_id == cid {
-                return context;
-            } else {
-                continue;
-            }
-        }
-        self.call_stack.last_mut().unwrap()
+    pub fn get_runtime_context_by_context_id(&self, cid: u32) -> &RuntimeContext {
+        let idx = self.get_runtime_context_index_in_stack_by_context_id(cid);
+        self.get_runtime_context_by_stack_index(idx)
     }
 
 
