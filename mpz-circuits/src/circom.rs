@@ -844,15 +844,19 @@ impl RuntimeContext {
     }
 
     pub fn init (&mut self, runtime: &CircomRuntime) {
-        for context in runtime.call_stack.iter() {
-            for (k, v) in context.vars.iter() {
-                self.assign_var(k, *v);
-            }
-            for (k, v) in context.execution.vars.iter() {
-                self.execution(var_name, last_var_id)
-                self.execution.vars.insert(k.to_string(), v.to_u32().unwrap());
-            }
+        let mut context = runtime.get_runtime_context_by_context_id(self.caller_id);
+        for (k, v) in context.vars.iter() {
+            self.assign_var(k, *v);
         }
+        self.execution.init(context);
+    }
+
+    pub fn return_to_caller(&mut self, runtime: &CircomRuntime) {
+        let mut context = runtime.get_runtime_context_by_context_id(self.caller_id);
+        for (k, v) in self.vars.iter() {
+            context.assign_var(k, *v);
+        }
+        self.execution.return_to_caller(&context);
     }
 
     pub fn assign_var (&mut self, var_name: &String, last_var_id: u32) -> u32 {
@@ -879,7 +883,7 @@ pub struct RuntimeExecutionContext {
     pub caller_id: u32,
     pub context_id: u32,
     pub vars: HashMap<String, u32>,
-    pub exevars: HashMap<String, u32>
+    pub exevars: HashMap<String, bool>
 }
 
 impl RuntimeExecutionContext {
@@ -896,7 +900,7 @@ impl RuntimeExecutionContext {
         &self.vars
     }
 
-    pub fn exevars(&self) -> &HashMap<String, u32> {
+    pub fn exevars(&self) -> &HashMap<String, bool> {
         &self.exevars
     }
 
@@ -904,11 +908,20 @@ impl RuntimeExecutionContext {
         RuntimeExecutionContext { caller_id: _caller_id, context_id: _context_id, vars: HashMap::new(), exevars: HashMap::new() }
     }
 
-    pub fn init (&mut self, runtime: &CircomRuntime) {
-        for context in runtime.call_stack.iter() {
-            for (k, v) in context.vars.iter() {
-                self.vars.insert(k.to_string(), v.to_u32().unwrap());
-                self.exevars.insert(k.to_string(), 0);
+    pub fn init (&mut self, context: &RuntimeContext) {
+        for (k, v) in context.execution.vars.iter() {
+            self.assign_var(k);
+            if context.execution.can_get_var_val(k) {
+                self.assign_var_val(k, *v);
+            }
+        }
+    }
+
+    pub fn return_to_caller(&mut self, context: &RuntimeContext) {
+        for (k, v) in self.vars.iter() {
+            context.execution.assign_var(k);
+            if self.can_get_var_val(k) {
+                context.execution.assign_var_val(k, *v);
             }
         }
     }
@@ -920,7 +933,7 @@ impl RuntimeExecutionContext {
 
     pub fn assign_var_val (&mut self, var_name: &String, var_val: u32) -> u32 {
         self.vars.insert(var_name.to_string(), var_val);
-        self.exevars.insert(var_name.to_string(), 1);
+        self.exevars.insert(var_name.to_string(), true);
         var_val
     }
 
@@ -928,7 +941,7 @@ impl RuntimeExecutionContext {
         *self.vars.get(var_name).unwrap()
     }
 
-    pub fn can_get_var_val(&self, var_name: &String) -> u32 {
+    pub fn can_get_var_val(&self, var_name: &String) -> bool {
         *self.exevars.get(var_name).unwrap()
     }
 }
@@ -936,38 +949,88 @@ impl RuntimeExecutionContext {
 // For runtime we maintain a call stack
 pub struct CircomRuntime {
     pub last_var_id: u32,
+    pub last_context_id: u32,
     pub call_stack: Vec<RuntimeContext>
 }
 
 impl CircomRuntime {
     pub fn new () -> CircomRuntime {
-        CircomRuntime { last_var_id: 0, call_stack: Vec::new() }
+        CircomRuntime { last_var_id: 0, last_context_id: 0, call_stack: Vec::new() }
     }
     pub fn init (&mut self) {
-        let mut rc = RuntimeContext::new(0, 1);
+        self.last_context_id += 1;
+        let mut rc = RuntimeContext::new(0, self.last_context_id);
         rc.init(self);
         self.call_stack.push(rc);
 
     }
 
-    pub fn new_context (&mut self) {
-        let mut rc = RuntimeContext::new(self.get_current_runtime_context_id(), self.get_current_runtime_context_id() + 1);
+    pub fn new_context_from_calling (&mut self) {
+        self.last_context_id += 1;
+        let mut rc = RuntimeContext::new(self.get_current_runtime_context_id(), self.last_context_id);
         rc.init(self);
         self.call_stack.push(rc);
 
     }
 
-    pub fn end_context (&mut self) {
+    pub fn new_context_from_branching (&mut self) {
+        self.last_context_id += 1;
+        let mut rc = RuntimeContext::new(self.get_current_runtime_context_caller_id(), self.last_context_id);
+        rc.init(self);
+        self.call_stack.push(rc);
+
+    }
+
+    pub fn end_current_context_return_vars (&mut self) {
+        let mut rc = self.get_current_runtime_context();
+        rc.return_to_caller(self);
         self.call_stack.pop();
+    }
+
+    // If first then else, so if 1 context -> if, if 2 contexts -> if else
+    // TODO: not handled for now
+    pub fn merge_current_branches_return_vars(&mut self) {
+        let mut rc = self.get_current_runtime_context();
+        rc.return_to_caller(self);
+        self.call_stack.pop();
+    }
+
+    pub fn get_current_runtime_context_caller_id (&mut self) -> u32 {
+        self.call_stack.last().unwrap().caller_id
     }
 
     pub fn get_current_runtime_context_id (&mut self) -> u32 {
         self.call_stack.last().unwrap().context_id
     }
 
+    pub fn get_current_runtime_context_caller (&mut self) -> &mut RuntimeContext {
+        let caller_id = self.get_current_runtime_context_caller_id();
+        for context in self.call_stack.iter_mut() {
+            if context.context_id == caller_id {
+                context
+            } else {
+                continue;
+            }
+        }
+        self.call_stack.last_mut().unwrap()
+    }
+
     pub fn get_current_runtime_context (&mut self) -> &mut RuntimeContext {
         self.call_stack.last_mut().unwrap()
     }
+
+    pub fn get_runtime_context_by_context_id(&mut self, cid: u32) -> &mut RuntimeContext {
+        for context in self.call_stack.iter_mut() {
+            if context.context_id == cid {
+                context
+            } else {
+                continue;
+            }
+        }
+        self.call_stack.last_mut().unwrap()
+    }
+
+
     pub fn get_var_from_current_context (&mut self, var: &String) -> u32 {
         let current = self.get_current_runtime_context();
         current.get_var(var)
