@@ -1036,6 +1036,8 @@ impl CircomRuntime {
         var
     }
 
+    // TODO: array auto var should support multi-dimension, right now 1
+
     pub fn assign_array_var_to_current_context (&mut self, var: &String, indice: Vec<u32>) -> (String, u32) {
         self.last_var_id += 1;
         let var_id = self.last_var_id;
@@ -1192,7 +1194,7 @@ impl ArithmeticCircuit {
 
     // }
 
-    pub fn print_ac(&mut self) {
+    pub fn print_ac(&self) {
         for (ank, anv) in self.gates.iter() {
             println!("Gate {}: {} = {} [{}] {}", ank, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
         }
@@ -1200,6 +1202,7 @@ impl ArithmeticCircuit {
 }
 
 //WIP HERE
+// TODO: named_access should support multi-dimension, right now 1
 
 fn execute_infix_op (
     ac: &mut ArithmeticCircuit,
@@ -1763,18 +1766,27 @@ fn traverse_statement (
             
         }
         Substitution { meta, var, access, op, rhe, .. } => {
+            let mut name_access = String::from(var);
+            println!("Variable found {}", var.to_string());
             for a in access.iter() {
                 match a {
                     Access::ArrayAccess(expr) => {
-                        traverse_expression(ac, runtime, var, expr, program_archive);
+                        println!("Array access found");
+                        // let mut dim_u32_vec = Vec::new();
+                        let dim_u32_str = 
+                            traverse_expression(ac, runtime, var, expr, program_archive);
+                        // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
+                        name_access.push_str("_");
+                        name_access.push_str(dim_u32_str.as_str());
+                        println!("Change var name to {}", name_access);
                     },
                     Access::ComponentAccess(name) => {
                         println!("Component access not handled");
                     }
                 }
             }
-            let rhs = traverse_expression(ac, runtime, var, rhe, program_archive);
-            println!("Assigning {} to {}", rhs, var);
+            let rhs = traverse_expression(ac, runtime, &name_access, rhe, program_archive);
+            println!("Assigning {} to {}", rhs, &name_access);
         }
         Block { stmts, .. } => {
             traverse_sequence_of_statements(ac, runtime, stmts, program_archive, true);

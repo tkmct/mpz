@@ -9,18 +9,19 @@ template InnerProd () {
    signal input input_B[10];  
    signal output ip;
 
-   // var sum = 0;
-   // for (var i = 0; i < 10; i++) {
-   //    sum = sum + input_A[i]*input_B[i];
-   // }
+   var sum = 0;
+   for (var i = 0; i < 10; i++) {
+      input_A[3] <== i;
+      sum = sum + input_A[2]*input_B[7];
+   }
    // var temp = input_A[0] * input_B[0];
    // sum = sum + temp;
    // var sum1 = input_A[0] * input_B[0];
    // var sum2 = sum + sum1;
    // sum = sum2;
 
-   var sum = 0;
-   sum = sum + input_A[3] * input_B[8];
+   // var sum = 0;
+   // sum = sum + input_A[3] * input_B[8];
 
    ip <== sum;
 
