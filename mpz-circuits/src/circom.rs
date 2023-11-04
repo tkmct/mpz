@@ -1372,8 +1372,8 @@ fn execute_expression (
     // let mut can_be_simplified = true;
     match expr {
         Number(_, value) => {
-            let var_id = runtime.assign_var_to_current_context(&value.to_string());
-            ac.add_const_var(var_id, value.to_u32().unwrap());
+            // let var_id = runtime.assign_var_to_current_context(&value.to_string());
+            // ac.add_const_var(var_id, value.to_u32().unwrap());
             value.to_string()
         },
         InfixOp { meta, lhe, infix_op, rhe, .. } => {
@@ -1548,6 +1548,257 @@ fn traverse_variable_declaration (
             u32vec.push(i);
             let (var, var_id) = runtime.assign_array_var_to_current_context(&var_name.to_string(), u32vec);
             ac.add_var(var_id, var.as_str());
+        }
+    }
+}
+
+fn execute_statement (
+    ac: &mut ArithmeticCircuit,
+    runtime: &mut CircomRuntime,
+    stmt: &Statement,
+    program_archive: &ProgramArchive
+) {
+
+    use Statement::*;
+    let id = stmt.get_meta().elem_id;
+
+    // Analysis::reached(&mut runtime.analysis, id);
+
+    // let mut can_be_simplified = true;
+
+    match stmt {
+        InitializationBlock { initializations, .. } => {
+            for istmt in initializations.iter() {
+                traverse_statement(ac, runtime, istmt, program_archive);
+            }
+        }
+        Declaration { meta, xtype, name, dimensions, .. } => {
+            println!("Declaration of {}", name);
+            match xtype {
+                // VariableType::AnonymousComponent => {
+                //     execute_anonymous_component_declaration(
+                //         name,
+                //         meta.clone(),
+                //         &dimensions,
+                //         &mut runtime.environment,
+                //         &mut runtime.anonymous_components,
+                //     );
+                // }
+                _ => {
+                    let mut dim_u32_vec = Vec::new();
+                    for dimension in dimensions.iter() {
+                        let dim_u32_str = 
+                            traverse_expression(ac, runtime, name, dimension, program_archive);
+                        dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
+                    }
+                    // treat_result_with_memory_error_void(
+                    //     valid_array_declaration(&arithmetic_values),
+                    //     meta,
+                    //     &mut runtime.runtime_errors,
+                    //     &runtime.call_trace,
+                    // )?;
+                    // let usable_dimensions =
+                    //     if let Option::Some(dimensions) = cast_indexing(&arithmetic_values) {
+                    //         dimensions
+                    //     } else {
+                    //         let err = Result::Err(ExecutionError::ArraySizeTooBig);
+                    //         treat_result_with_execution_error(
+                    //             err,
+                    //             meta,
+                    //             &mut runtime.runtime_errors,
+                    //             &runtime.call_trace,
+                    //         )?
+                    //     };
+                    match xtype {
+                        VariableType::Component => traverse_component_declaration(
+                            ac,
+                            runtime,
+                            name,
+                            &dim_u32_vec
+                            // &usable_dimensions
+                            // &mut runtime.environment,
+                            // actual_node
+                        ),
+                        VariableType::Var => traverse_variable_declaration(
+                            ac,
+                            runtime,
+                            name,
+                            &dim_u32_vec
+                            // &usable_dimensions
+                        ),
+                        VariableType::Signal(signal_type, tag_list) => traverse_signal_declaration (
+                            ac,
+                            runtime,
+                            name,
+                            *signal_type,
+                            &dim_u32_vec
+                            // &usable_dimensions
+                        ),
+                        _ =>{
+                            unreachable!()
+                        }
+                    }
+
+                }
+            }
+            // Option::None
+        }
+        IfThenElse { cond, if_case, else_case, .. } => {
+            // let var = String::from("IFTHENELSE");
+            // ac.add_var(&var, SignalType::Intermediate);
+            // let lhs = traverse_expression(ac, &var, cond, program_archive);
+            // traverse_statement(ac, &if_case, program_archive);
+            // let else_case = else_case.as_ref().map(|e| e.as_ref());
+            // traverse_statement(ac, else_case.unwrap(), program_archive);
+        //     let else_case = else_case.as_ref().map(|e| e.as_ref());
+        //     let (possible_return, can_simplify, _) = execute_conditional_statement(
+        //         cond,
+        //         if_case,
+        //         else_case,
+        //         program_archive,
+        //         runtime,
+        //         actual_node,
+        //         flags
+        //     )?;
+        //     can_be_simplified = can_simplify;
+        //     possible_return
+        // }
+        // While { cond, stmt, .. } => loop {
+        //     let (returned, can_simplify, condition_result) = execute_conditional_statement(
+        //         cond,
+        //         stmt,
+        //         Option::None,
+        //         program_archive,
+        //         runtime,
+        //         actual_node,
+        //         flags
+        //     )?;
+        //     can_be_simplified &= can_simplify;
+        //     if returned.is_some() {
+        //         break returned;
+        //     } else if condition_result.is_none() {
+        //         let (returned, _, _) = execute_conditional_statement(
+        //             cond,
+        //             stmt,
+        //             None,
+        //             program_archive,
+        //             runtime,
+        //             actual_node,
+        //             flags
+        //         )?;
+        //         break returned;
+        //     } else if !condition_result.unwrap() {
+        //         break returned;
+        //     }
+        },
+        While { cond, stmt, .. } => loop {
+            let var = String::from("while");
+            let res = execute_expression(ac, runtime, &var, cond, program_archive);
+            println!("res = {}", res);
+            traverse_statement(ac, runtime, stmt, program_archive);
+            if res.contains("0") {
+                break;
+            }
+            // traverse_expression(ac, runtime, var, cond, program_archive);
+            // let var = String::from("while");
+            // ac.add_var(&var, SignalType::Intermediate);
+            // let lhs = traverse_expression(ac, runtime, &var, cond, program_archive);
+            // println!("While cond {}", lhs);
+            // traverse_statement(ac, stmt, program_archive);
+        },
+        ConstraintEquality { meta, lhe, rhe, .. } => {
+            // debug_assert!(actual_node.is_some());
+            // let f_left = execute_expression(lhe, program_archive, runtime, flags)?;
+            // let f_right = execute_expression(rhe, program_archive, runtime, flags)?;
+            // let arith_left = safe_unwrap_to_arithmetic_slice(f_left, line!());
+            // let arith_right = safe_unwrap_to_arithmetic_slice(f_right, line!());
+
+            // let correct_dims_result = AExpressionSlice::check_correct_dims(&arith_left, &Vec::new(), &arith_right, true);
+            // treat_result_with_memory_error_void(
+            //     correct_dims_result,
+            //     meta,
+            //     &mut runtime.runtime_errors,
+            //     &runtime.call_trace,
+            // )?;
+            // for i in 0..AExpressionSlice::get_number_of_cells(&arith_left){
+            //     let value_left = treat_result_with_memory_error(
+            //         AExpressionSlice::access_value_by_index(&arith_left, i),
+            //         meta,
+            //         &mut runtime.runtime_errors,
+            //         &runtime.call_trace,
+            //     )?;
+            //     let value_right = treat_result_with_memory_error(
+            //         AExpressionSlice::access_value_by_index(&arith_right, i),
+            //         meta,
+            //         &mut runtime.runtime_errors,
+            //         &runtime.call_trace,
+            //     )?;
+            //     let possible_non_quadratic =
+            //         AExpr::sub(
+            //             &value_left, 
+            //             &value_right, 
+            //             &runtime.constants.get_p()
+            //         );
+            //     if possible_non_quadratic.is_nonquadratic() {
+            //         treat_result_with_execution_error(
+            //             Result::Err(ExecutionError::NonQuadraticConstraint),
+            //             meta,
+            //             &mut runtime.runtime_errors,
+            //             &runtime.call_trace,
+            //         )?;
+            //     }
+            //     let quadratic_expression = possible_non_quadratic;
+            //     let constraint_expression = AExpr::transform_expression_to_constraint_form(
+            //         quadratic_expression,
+            //         runtime.constants.get_p(),
+            //     )
+            //     .unwrap();
+            //     if let Option::Some(node) = actual_node {
+            //         node.add_constraint(constraint_expression);
+            //     }    
+            // }
+            // Option::None
+        }
+        Return { value, .. } => {
+            
+        }
+        Assert { arg, meta, .. } => {
+            
+        }
+        Substitution { meta, var, access, op, rhe, .. } => {
+            let mut name_access = String::from(var);
+            println!("Variable found {}", var.to_string());
+            for a in access.iter() {
+                match a {
+                    Access::ArrayAccess(expr) => {
+                        println!("Array access found");
+                        // let mut dim_u32_vec = Vec::new();
+                        let dim_u32_str = 
+                            traverse_expression(ac, runtime, var, expr, program_archive);
+                        // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
+                        name_access.push_str("_");
+                        name_access.push_str(dim_u32_str.as_str());
+                        println!("Change var name to {}", name_access);
+                    },
+                    Access::ComponentAccess(name) => {
+                        println!("Component access not handled");
+                    }
+                }
+            }
+            let rhs = execute_expression(ac, runtime, &name_access, rhe, program_archive);
+            println!("Assigning {} to {}", rhs, &name_access);
+            runtime.assign_var_val_to_current_context(&name_access, rhs.parse::<u32>().unwrap());
+        }
+        Block { stmts, .. } => {
+            traverse_sequence_of_statements(ac, runtime, stmts, program_archive, true);
+        }
+        LogCall { args, .. } => {
+        }
+        UnderscoreSubstitution{ meta, rhe, op} =>{
+            println!("UnderscoreSubstitution found");
+        }
+        _ =>{
+            unimplemented!()
         }
     }
 }
@@ -1787,6 +2038,7 @@ fn traverse_statement (
             }
             let rhs = traverse_expression(ac, runtime, &name_access, rhe, program_archive);
             println!("Assigning {} to {}", rhs, &name_access);
+            execute_statement(ac, runtime, stmt, program_archive);
         }
         Block { stmts, .. } => {
             traverse_sequence_of_statements(ac, runtime, stmts, program_archive, true);
