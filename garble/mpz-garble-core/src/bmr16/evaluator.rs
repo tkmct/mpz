@@ -6,15 +6,13 @@ use blake3::Hasher;
 use crate::{
     circuit::ArithEncryptedGate,
     encoding::{
-        add_label, cmul_label, crt_encoding_state, output_tweak, tweak, tweak2, CrtDecoding,
-        DecodeError, EncodedCrtValue, LabelModN,
+        add_label, cmul_label, crt_encoding_state, tweak, tweak2, DecodeError, EncodedCrtValue,
+        LabelModN,
     },
 };
 
 use mpz_circuits::arithmetic::{
-    components::ArithGate,
-    utils::{convert_crt_to_value, PRIMES},
-    ArithCircuitError, ArithmeticCircuit, TypeError,
+    components::ArithGate, ArithCircuitError, ArithmeticCircuit, TypeError,
 };
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
@@ -192,11 +190,6 @@ impl<const N: usize> BMR16Evaluator<N> {
                         // }
 
                         let q_x = node_x.modulus();
-                        let q_y = node_y.modulus();
-
-                        // let unequal = q_x != q_y;
-                        // let ngates = q_x as usize + q_y as usize - 2 + unequal as usize;
-
                         let gate_num = self.gid;
                         self.gid += 1;
                         let g = tweak2(gate_num as u64, 0);
@@ -248,7 +241,7 @@ impl<const N: usize> BMR16Evaluator<N> {
                 }
                 ArithGate::Proj {
                     x: node_x,
-                    tt,
+                    tt: _,
                     z: node_z,
                 } => {
                     let q = node_z.modulus();
@@ -285,45 +278,5 @@ impl<const N: usize> BMR16Evaluator<N> {
         }
 
         self.complete = true;
-    }
-
-    /// Decode outputs of garbled circuit using decoding info given by generator.
-    pub fn decode_outputs(&self, decodings: Vec<CrtDecoding>) -> Result<Vec<u32>, EvaluatorError> {
-        let outputs = self.outputs()?;
-
-        let values: Result<Vec<u32>, DecodeError> = outputs
-            .iter()
-            .zip(decodings.iter())
-            .enumerate()
-            .map(|(idx, (output, decoding))| {
-                let decoded_nodes: Vec<u16> = output
-                    .iter()
-                    .enumerate()
-                    .map(|(i, label)| {
-                        let q = PRIMES[i];
-                        let mut decoded = None;
-
-                        for k in 0..q {
-                            let tweak = output_tweak(idx, k);
-                            let actual =
-                                LabelModN::from_block(self.cipher.tccr(tweak, label.to_block()), q);
-                            let dec = decoding.get(i, k as usize).unwrap_or_else(|| {
-                                panic!("Decoding should be set for.{}, {}, {}", idx, i, k)
-                            });
-
-                            if actual == *dec {
-                                decoded = Some(k);
-                                break;
-                            }
-                        }
-                        decoded.ok_or(DecodeError::LackOfDecodingInfo(idx, q))
-                    })
-                    .collect::<Result<Vec<u16>, DecodeError>>()?;
-
-                convert_crt_to_value(output.len(), &decoded_nodes).map_err(|e| e.into())
-            })
-            .collect();
-
-        values.map_err(|e| e.into())
     }
 }

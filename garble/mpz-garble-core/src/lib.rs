@@ -63,8 +63,8 @@ pub mod bmr16;
 
 pub use circuit::{ArithEncryptedGate, EncryptedGate, GarbledCircuit};
 pub use encoding::{
-    state as encoding_state, ChaChaEncoder, Decoding, Delta, Encode, EncodedValue, Encoder,
-    EncodingCommitment, EqualityCheck, Label, ValueError,
+    state as encoding_state, ChaChaEncoder, CrtDecoding, Decoding, Delta, Encode, EncodedValue,
+    Encoder, EncodingCommitment, EqualityCheck, Label, ValueError,
 };
 pub use evaluator::{Evaluator, EvaluatorError};
 pub use generator::{Generator, GeneratorError};

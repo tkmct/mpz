@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use blake3::Hasher;
 use mpz_circuits::arithmetic::{
-    components::ArithGate, utils::PRIMES, ArithCircuitError, ArithmeticCircuit, TypeError,
+    components::ArithGate, ArithCircuitError, ArithmeticCircuit, TypeError,
 };
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
@@ -15,8 +15,8 @@ use mpz_core::{
 use crate::{
     circuit::ArithEncryptedGate,
     encoding::{
-        add_label, cmul_label, crt_encoding_state, output_tweak, tweak, tweak2, CrtDecoding,
-        CrtDelta, EncodedCrtValue, LabelModN,
+        add_label, cmul_label, crt_encoding_state, tweak, tweak2, CrtDelta, EncodedCrtValue,
+        LabelModN,
     },
 };
 
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_bmr16_generator() {
-        let encoder = ChaChaCrtEncoder::new([0; 32], 10);
+        let encoder = ChaChaCrtEncoder::new([0; 32]);
 
         let circ = adder_circ();
         let deltas = encoder.deltas();

@@ -1,13 +1,13 @@
 use bytemuck::cast;
 
-use mpz_core::aes::FixedKeyAes;
+use mpz_core::aes::{FixedKeyAes, FIXED_KEY_AES};
 use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 
 use mpz_circuits::arithmetic::{
-    types::CrtValueType,
-    utils::{digits_per_u128, get_index_of_prime, is_power_of_2, PRIMES},
+    types::{ArithValue, CrtValueType},
+    utils::{convert_crt_to_value, digits_per_u128, get_index_of_prime, is_power_of_2, PRIMES},
     TypeError,
 };
 
@@ -16,6 +16,7 @@ use crate::encoding::{utils::unrank, Block};
 const DELTA_STREAM_ID: u64 = u64::MAX;
 
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum DecodeError {
     #[error("Not enough decoding info provided for output idx {0} mod {1}")]
     LackOfDecodingInfo(usize, u16),
@@ -23,7 +24,8 @@ pub enum DecodeError {
     TypeError(#[from] TypeError),
 }
 
-pub(crate) fn add_label(x: &LabelModN, y: &LabelModN) -> LabelModN {
+/// Add two LabelModN
+pub fn add_label(x: &LabelModN, y: &LabelModN) -> LabelModN {
     debug_assert_eq!(x.modulus, y.modulus);
     debug_assert_eq!(x.inner.len(), y.inner.len());
 
@@ -44,7 +46,8 @@ pub(crate) fn add_label(x: &LabelModN, y: &LabelModN) -> LabelModN {
     LabelModN::new(z_inner, q)
 }
 
-pub(crate) fn cmul_label(x: &LabelModN, c: u64) -> LabelModN {
+/// Cmul LabelModN with constant value
+pub fn cmul_label(x: &LabelModN, c: u64) -> LabelModN {
     let q = x.modulus;
     let z_inner = x
         .iter()
@@ -71,6 +74,15 @@ impl LabelModN {
     /// create new LabelModN instance from inner vec and modulus
     pub fn new(inner: Vec<u16>, modulus: u16) -> Self {
         Self { inner, modulus }
+    }
+
+    /// Create a zero LabelModN instance
+    pub fn zero(modulus: u16) -> Self {
+        let len = digits_per_u128(modulus);
+        Self {
+            inner: vec![0; len],
+            modulus,
+        }
     }
 
     /// convert label into block
@@ -129,6 +141,11 @@ impl LabelModN {
         debug_assert!(color < self.modulus);
         color
     }
+
+    /// Return the modulus of label
+    pub fn modulus(&self) -> u16 {
+        self.modulus
+    }
 }
 
 impl Default for LabelModN {
@@ -150,13 +167,13 @@ pub mod state {
     pub trait LabelState: std::marker::Copy {}
 
     /// Full state
-    #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
     pub struct Full {}
 
     impl LabelState for Full {}
 
     /// Active state
-    #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
     pub struct Active {}
 
     impl LabelState for Active {}
@@ -166,7 +183,7 @@ use state::*;
 
 /// Set of labels.
 /// This struct corresponds to one CrtValue
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Labels<S: LabelState> {
     _state: S,
     labels: Vec<LabelModN>,
@@ -201,18 +218,18 @@ impl Labels<state::Active> {
 }
 
 /// Encoded CRT Value.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct EncodedCrtValue<S: LabelState>(Labels<S>);
 
 impl<S: LabelState> EncodedCrtValue<S> {
     /// returns iterator of Labels.
-    pub(crate) fn iter(&self) -> Box<dyn Iterator<Item = &LabelModN> + '_> {
+    pub fn iter(&self) -> Box<dyn Iterator<Item = &LabelModN> + '_> {
         Box::new(self.0.labels.iter())
     }
 
     /// returns length of labels
     #[allow(clippy::len_without_is_empty)]
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.0.labels.len()
     }
 
@@ -273,6 +290,43 @@ impl EncodedCrtValue<state::Full> {
     }
 }
 
+impl EncodedCrtValue<state::Active> {
+    /// Decode active encoded value
+    ///
+    /// # Arguments
+    ///
+    /// - `id` - id of the output. used to tweak output.
+    /// - `decoding` - Decoding info used to check decoded value integrity.
+    pub fn decode(&self, id: usize, decoding: &CrtDecoding) -> Result<ArithValue, DecodeError> {
+        let cipher = &FIXED_KEY_AES;
+
+        let decoded_nodes: Vec<u16> = self
+            .iter()
+            .enumerate()
+            .map(|(i, label)| {
+                let q = PRIMES[i];
+                let mut decoded = None;
+
+                for k in 0..q {
+                    let tweak = output_tweak(id, k);
+                    let actual = LabelModN::from_block(cipher.tccr(tweak, label.to_block()), q);
+                    let dec = decoding.get(i, k as usize).unwrap_or_else(|| {
+                        panic!("Decoding should be set for.{}, {}, {}", id, i, k)
+                    });
+
+                    if actual == *dec {
+                        decoded = Some(k);
+                        break;
+                    }
+                }
+                decoded.ok_or(DecodeError::LackOfDecodingInfo(id, q))
+            })
+            .collect::<Result<Vec<u16>, DecodeError>>()?;
+
+        convert_crt_to_value(self.len(), &decoded_nodes).map_err(|e| e.into())
+    }
+}
+
 impl From<Vec<LabelModN>> for EncodedCrtValue<state::Full> {
     fn from(labels: Vec<LabelModN>) -> Self {
         Self(Labels::<state::Full>::new(labels))
@@ -295,7 +349,7 @@ impl<const N: usize> ChaChaCrtEncoder<N> {
     /// Create new encoder for CRT labels with provided seed.
     /// * `seed` - seed value of encoder
     /// * `num_wire` - maximum number of wires used in circuit
-    pub fn new(seed: [u8; 32], num_wire: usize) -> Self {
+    pub fn new(seed: [u8; 32]) -> Self {
         let mut rng = ChaCha20Rng::from_seed(seed);
 
         // Stream id u64::MAX is reserved to generate delta.
@@ -307,8 +361,8 @@ impl<const N: usize> ChaChaCrtEncoder<N> {
         Self { seed, deltas }
     }
 
-    // copied from encoding/encoder.rs
-    fn get_rng(&self, id: u64) -> ChaCha20Rng {
+    /// copied from encoding/encoder.rs
+    pub fn get_rng(&self, id: u64) -> ChaCha20Rng {
         if id == DELTA_STREAM_ID {
             panic!("stream id {} is reserved", DELTA_STREAM_ID);
         }
@@ -353,14 +407,17 @@ impl<const N: usize> ChaChaCrtEncoder<N> {
     }
 }
 
+/// Decoding info used to decode output values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrtDecoding(Vec<Vec<LabelModN>>);
 
 impl CrtDecoding {
+    /// Create a decoding isntance from vec of vec of label
     pub fn new(inner: Vec<Vec<LabelModN>>) -> Self {
         Self(inner)
     }
 
+    /// get label by indcies
     pub fn get(&self, i: usize, j: usize) -> Option<&LabelModN> {
         self.0.get(i)?.get(j)
     }
@@ -387,7 +444,7 @@ pub(crate) fn tweak2(i: u64, j: u64) -> Block {
 ///
 /// * `deltas` - slice of delta values sorted by size of modulus
 /// * `q` - modulus to get delta
-pub(crate) fn get_delta_by_modulus(deltas: &[CrtDelta], q: u16) -> Option<CrtDelta> {
+pub fn get_delta_by_modulus(deltas: &[CrtDelta], q: u16) -> Option<CrtDelta> {
     let idx = get_index_of_prime(q)?;
     Some(deltas[idx].clone())
 }

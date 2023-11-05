@@ -64,7 +64,7 @@ fn inv(inp_a: i128, inp_b: i128) -> i128 {
 
 /// Convert crt value to Fp
 /// TODO: make this generic
-pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<u32, TypeError> {
+pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<ArithValue, TypeError> {
     if values.len() != len {
         return Err(TypeError::InvalidLength {
             expected: len,
@@ -82,7 +82,7 @@ pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<u32, TypeError
         ret += *a as i128 * inv(q, p) * q;
         ret %= &n_acc;
     }
-    Ok(ret as u32)
+    Ok(ArithValue::U32(ret as u32))
 }
 
 /// Convert set of crt represented values to field points.

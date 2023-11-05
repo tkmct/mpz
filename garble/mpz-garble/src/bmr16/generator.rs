@@ -1,38 +1,35 @@
 //! BMR16 generator implementation
 
+use futures::{Sink, SinkExt};
 use std::{
+    borrow::BorrowMut,
     collections::HashSet,
     ops::DerefMut,
     sync::{Arc, Mutex},
 };
+use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 
-use futures::{Sink, SinkExt};
 use mpz_circuits::{
     arithmetic::{
-        types::{ArithValue, CrtRepr, CrtValue, CrtValueType},
-        utils::{convert_value_to_crt, convert_values_to_crts},
+        types::{ArithValue, CrtValueType},
+        utils::convert_value_to_crt,
     },
-    types::{Value, ValueType},
     ArithmeticCircuit,
 };
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
-    hash::Hash,
     value::{ValueId, ValueRef},
 };
 use mpz_garble_core::{
     bmr16::generator::{BMR16Generator as GeneratorCore, GeneratorError as BMR16GeneratorError},
     encoding::{crt_encoding_state as encoding_state, ChaChaCrtEncoder, EncodedCrtValue},
     msg::GarbleMessage,
-    Encoder,
+    ValueError,
 };
 
-use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
-
-use crate::bmr16::registry::CrtEncodingRegistry;
-use crate::{config::ValueIdConfig, ot::OTSendEncoding, registry::EncodingRegistry};
-
-use mpz_garble_core::ValueError;
+use crate::bmr16::{
+    config::ArithValueIdConfig, ot::OTSendCrtEncoding, registry::CrtEncodingRegistry,
+};
 
 /// Errors that can occur while performing the role of a generator
 #[derive(Debug, thiserror::Error)]
@@ -80,10 +77,7 @@ impl<const N: usize> BMR16Generator<N> {
     /// create new generator instance
     pub fn new(config: BMR16GeneratorConfig, encoder_seed: [u8; 32]) -> Self {
         Self {
-            state: Mutex::new(State::new(ChaChaCrtEncoder::<N>::new(
-                encoder_seed,
-                config.num_wires,
-            ))),
+            state: Mutex::new(State::new(ChaChaCrtEncoder::<N>::new(encoder_seed))),
             config,
             cipher: &(FIXED_KEY_AES),
         }
@@ -94,53 +88,86 @@ impl<const N: usize> BMR16Generator<N> {
         self.state.lock().unwrap()
     }
 
-    /// Returns the seed used to generate encodings.
-    pub(crate) fn seed(&self) -> Vec<u8> {
-        self.state().encoder.seed()
-    }
-
-    /// Returns the encoding for a value.
-    pub fn get_encoding(&self, value: &ValueRef) -> Option<EncodedCrtValue<encoding_state::Full>> {
-        self.state().encoding_registry.get_encoding(value)
-    }
-
-    pub(crate) fn get_encodings_by_id(
+    /// setup inputs by sending wires to evaluator
+    pub async fn setup_inputs<
+        S: Sink<GarbleMessage, Error = std::io::Error> + Unpin,
+        OT: OTSendCrtEncoding,
+    >(
         &self,
-        ids: &[ValueId],
-    ) -> Option<Vec<EncodedCrtValue<encoding_state::Full>>> {
-        let state = self.state();
-
-        ids.iter()
-            .map(|id| state.encoding_registry.get_encoding_by_id(id))
-            .collect::<Option<Vec<_>>>()
-    }
-
-    /// Generate encodings for a slice of values
-    pub(crate) fn generate_encodings(
-        &self,
-        values: &[(ValueId, CrtValueType)],
+        id: &str,
+        input_configs: &[ArithValueIdConfig],
+        sink: &mut S,
+        ot: &OT,
     ) -> Result<(), GeneratorError> {
-        let mut state = self.state();
-
-        for (id, ty) in values {
-            _ = state.encode_by_id(id, ty)?;
+        println!("[GEN] setup_inputs() start");
+        let mut ot_send_values = Vec::new();
+        let mut direct_send_values = Vec::new();
+        for config in input_configs.iter().cloned() {
+            match config {
+                ArithValueIdConfig::Public { id, value, .. } => {
+                    direct_send_values.push((id, value));
+                }
+                ArithValueIdConfig::Private { id, value, ty } => {
+                    if let Some(value) = value {
+                        direct_send_values.push((id, value));
+                    } else {
+                        ot_send_values.push((id, ty));
+                    }
+                }
+            }
         }
 
+        futures::try_join!(
+            self.ot_send_active_encodings(id, &ot_send_values, ot),
+            self.direct_send_active_encodings(&direct_send_values, sink)
+        )?;
+
+        println!("[GEN] setup_inputs() done");
         Ok(())
     }
 
-    /// setup inputs by sending wires to evaluator
-    pub async fn setup_inputs() -> Result<(), GeneratorError> {
-        todo!()
-    }
-
-    async fn ot_send_active_encodings<OT: OTSendEncoding>(
+    async fn ot_send_active_encodings<OT: OTSendCrtEncoding>(
         &self,
         id: &str,
         values: &[(ValueId, CrtValueType)],
         ot: &OT,
     ) -> Result<(), GeneratorError> {
-        todo!()
+        println!("[GEN] ot_send_active_encodings() start");
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let mut state = self.state();
+        let full_encodings = {
+            // Filter out any values that are already active, setting them active otherwise.
+            let mut values = values
+                .iter()
+                .filter(|(id, _)| state.active.insert(id.clone()))
+                .collect::<Vec<_>>();
+            values.sort_by_key(|(id, _)| id.clone());
+
+            // create a encoding for sending but do not save encodings
+            let encodings = values
+                .iter()
+                .map(|(id, ty)| state.encoder.encode_by_type(id.to_u64(), ty.clone()))
+                .collect::<Vec<_>>();
+            encodings
+        };
+
+        let encoder = state.encoder.borrow_mut();
+        let deltas = encoder.deltas();
+        let mut rng = encoder.get_rng(0);
+
+        println!("[GEN] ot.send_arith() start");
+        let bases = ot.send_arith(id, full_encodings, deltas, &mut rng).await?;
+        println!("[GEN] ot.send_arith() done");
+        for (labels, (v_id, _)) in bases.into_iter().zip(values) {
+            let encoding = EncodedCrtValue::<encoding_state::Full>::from(labels);
+            let _ = state.encoding_registry.set_encoding_by_id(v_id, encoding);
+        }
+        println!("[GEN] ot_send_active_encodings() done");
+
+        Ok(())
     }
 
     /// Directly sends the active encodings of the provided values to the evaluator.
@@ -156,6 +183,7 @@ impl<const N: usize> BMR16Generator<N> {
         values: &[(ValueId, ArithValue)],
         sink: &mut S,
     ) -> Result<(), GeneratorError> {
+        println!("[GEN] direct_send_active_encodings() start");
         if values.is_empty() {
             return Ok(());
         }
@@ -172,30 +200,36 @@ impl<const N: usize> BMR16Generator<N> {
             values
                 .iter()
                 .map(|(id, value)| {
-                    let crt_vec = convert_value_to_crt(value.clone());
+                    let crt_vec = convert_value_to_crt(*value);
                     let full_encoding = state.encode_by_id(id, &value.value_type())?;
 
-                    Ok(full_encoding.select(self.state().encoder.deltas(), crt_vec))
+                    Ok(full_encoding.select(state.encoder.deltas(), crt_vec))
                 })
                 .collect::<Result<Vec<_>, GeneratorError>>()?
         };
 
+        println!("[GEN] sink.send(ActiveCrtValues) start");
         sink.send(GarbleMessage::ActiveCrtValues(active_encodings))
             .await?;
+        println!("[GEN] sink.send(ActiveCrtValues) done");
+        println!("[GEN] direct_send_active_encodings() done");
 
         Ok(())
     }
 
     /// generate a garbled circuit,
-    pub async fn generate<S: Sink<GarbleMessage, Error = std::io::Error> + Unpin>(
+    pub async fn generate<
+        S: Sink<GarbleMessage, Error = std::io::Error> + Unpin + std::fmt::Debug,
+    >(
         &self,
         circ: Arc<ArithmeticCircuit>,
         inputs: &[ValueRef],
         outputs: &[ValueRef],
         sink: &mut S,
     ) -> Result<Vec<EncodedCrtValue<encoding_state::Full>>, GeneratorError> {
+        println!("[GEN] generate() start");
         // get encodings from inputs
-        let state = self.state();
+        let mut state = self.state();
         let inputs = inputs
             .iter()
             .map(|value| {
@@ -211,35 +245,40 @@ impl<const N: usize> BMR16Generator<N> {
         let mut batch: Vec<_>;
         let batch_size = self.config.batch_size;
 
+        sink.send(GarbleMessage::ArithEncryptedGates(vec![]))
+            .await
+            .unwrap();
         while !gen.is_complete() {
+            println!("[GEN] generating the encrypted gates");
             // Move the generator to another thread to produce the next batch
             // then send it back
             (gen, batch) = Backend::spawn(move || {
-                let batch = gen.by_ref().take(batch_size).collect();
+                let batch = gen.by_ref().take(batch_size).collect::<Vec<_>>();
                 (gen, batch)
             })
             .await;
 
+            println!("[GEN] generating finished: {:?}", !batch.is_empty());
+            println!("[GEN] sending the gate");
+            // let result = sink.send(GarbleMessage::ArithEncryptedGates(vec![])).await;
+            // println!("[GEN] Result: {:?}", result);
+
             if !batch.is_empty() {
-                sink.send(GarbleMessage::ArithEncryptedGates(batch)).await?;
+                println!("[GEN] send the message: ArithEncryptedGates",);
+                sink.send(GarbleMessage::ArithEncryptedGates(batch))
+                    .await
+                    .unwrap();
+
+                println!("[GEN] message sent",);
             }
+            println!("[GEN] gen.is_complete(): {}", gen.is_complete());
         }
 
+        println!("[GEN] gen.outputs()");
         let encoded_outputs = gen.outputs()?;
 
-        // TODO: implement commitment
-        // if self.config.encoding_commitments {
-        //     let commitments = encoded_outputs
-        //         .iter()
-        //         .map(|output| output.commit())
-        //         .collect();
-        //
-        //     sink.send(GarbleMessage::EncodingCommitments(commitments))
-        //         .await?;
-        // }
-
         // Add the outputs to the encoding registry and set as active.
-        let mut state = self.state();
+        println!("[GEN] set_encoding()");
         for (output, encoding) in outputs.iter().zip(encoded_outputs.iter()) {
             state
                 .encoding_registry
@@ -249,6 +288,7 @@ impl<const N: usize> BMR16Generator<N> {
             });
         }
 
+        println!("[GEN] generate() done");
         Ok(encoded_outputs)
     }
 
@@ -263,8 +303,9 @@ impl<const N: usize> BMR16Generator<N> {
         values: &[ValueRef],
         sink: &mut S,
     ) -> Result<(), GeneratorError> {
+        println!("[GEN] decode() start");
+        let state = self.state();
         let decodings = {
-            let state = self.state();
             values
                 .iter()
                 .enumerate()
@@ -273,15 +314,14 @@ impl<const N: usize> BMR16Generator<N> {
                         .encoding_registry
                         .get_encoding(value)
                         .ok_or(GeneratorError::MissingEncoding(value.clone()))
-                        .map(|encoding| {
-                            encoding.decoding(idx, self.state().encoder.deltas(), self.cipher)
-                        })
+                        .map(|encoding| encoding.decoding(idx, state.encoder.deltas(), self.cipher))
                 })
                 .collect::<Result<Vec<_>, _>>()?
         };
 
         sink.send(GarbleMessage::CrtValueDecodings(decodings))
             .await?;
+        println!("[GEN] decode() done");
 
         Ok(())
     }
@@ -321,7 +361,6 @@ impl<const N: usize> State<N> {
             (ValueRef::Array(_), _) => {
                 panic!("array type not supported")
             }
-            _ => panic!("invalid value and type combination: {:?} {:?}", value, ty),
         }
     }
 

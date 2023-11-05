@@ -33,7 +33,7 @@ impl CrtValueRegistry {
         &mut self,
         id: &str,
         ty: CrtValueType,
-        offset: usize,
+        _offset: usize,
     ) -> Result<ValueRef, MemoryError> {
         let value_ref = {
             let id = ValueId::new(id);
@@ -55,27 +55,6 @@ impl CrtValueRegistry {
         self.values.insert(id, ty);
 
         Ok(())
-    }
-
-    /// Returns a reference to the value with the given ID.
-    pub(crate) fn get_value(&self, id: &str) -> Option<ValueRef> {
-        self.refs.get(id).cloned()
-    }
-
-    /// Returns the type of the value with the given ID.
-    pub(crate) fn get_value_type(&self, id: &str) -> Option<CrtValueType> {
-        let value_ref = self.get_value(id)?;
-
-        self.get_value_type_with_ref(&value_ref)
-    }
-
-    pub(crate) fn get_value_type_with_ref(&self, value: &ValueRef) -> Option<CrtValueType> {
-        match value {
-            ValueRef::Value { id } => self.values.get(id).cloned(),
-            ValueRef::Array(values) => {
-                panic!("not supported");
-            }
-        }
     }
 }
 
@@ -136,16 +115,10 @@ where
     ) -> Result<(), EncodingRegistryError> {
         match (value, encoding) {
             (ValueRef::Value { id }, encoding) => self.set_encoding_by_id(id, encoding)?,
-            (ValueRef::Array(ids), _) => panic!("not supported"),
-            _ => panic!("value type {:?} does not match encoding type", value),
+            (ValueRef::Array(..), _) => panic!("not supported"),
         }
 
         Ok(())
-    }
-
-    /// Get the encoding for a value id if it exists.
-    pub(crate) fn get_encoding_by_id(&self, id: &ValueId) -> Option<EncodedCrtValue<T>> {
-        self.encodings.get(&id.to_u64().into()).cloned()
     }
 
     /// Get the encoding for a value if it exists.
@@ -156,7 +129,7 @@ where
     pub(crate) fn get_encoding(&self, value: &ValueRef) -> Option<EncodedCrtValue<T>> {
         match value {
             ValueRef::Value { id, .. } => self.encodings.get(&id.to_u64().into()).cloned(),
-            ValueRef::Array(ids) => {
+            ValueRef::Array(..) => {
                 panic!("not supported")
             }
         }

@@ -10,12 +10,14 @@ mod tests {
 
     use crate::{
         bmr16::{evaluator::*, generator::*},
-        encoding::{crt_encoding_state, ChaChaCrtEncoder, CrtDecoding, EncodedCrtValue},
+        encoding::{
+            crt_encoding_state, ChaChaCrtEncoder, CrtDecoding, DecodeError, EncodedCrtValue,
+        },
     };
     use mpz_circuits::{
         arithmetic::{
             ops::{add, mul},
-            types::{CrtLen, CrtRepr, CrtValue, ToCrtRepr},
+            types::{ArithValue, CrtLen, CrtRepr, CrtValue, ToCrtRepr},
             utils::convert_values_to_crts,
         },
         ArithmeticCircuit, ArithmeticCircuitBuilder,
@@ -47,7 +49,7 @@ mod tests {
     #[test]
     fn test_garble_add_circ() {
         const BATCH_SIZE: usize = 1000;
-        let encoder = ChaChaCrtEncoder::new([0; 32], 10);
+        let encoder = ChaChaCrtEncoder::new([0; 32]);
         let circ = adder_circ::<u32>();
 
         let a_val = 3;
@@ -102,7 +104,6 @@ mod tests {
 
         assert_eq!(gen_digest, ev_digest);
 
-        let gen_outputs = gen.outputs();
         let deltas = encoder.deltas();
 
         let decodings = gen
@@ -113,16 +114,22 @@ mod tests {
             .map(|(idx, output)| output.decoding(idx, deltas, &FIXED_KEY_AES))
             .collect::<Vec<CrtDecoding>>();
 
-        let outputs = ev.decode_outputs(decodings);
+        let outputs: Result<Vec<ArithValue>, DecodeError> = ev
+            .outputs()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(i, encoded_output)| encoded_output.decode(i, &decodings[i]))
+            .collect();
 
         assert!(outputs.is_ok());
-        assert_eq!(outputs.unwrap()[0], expected);
+        assert_eq!(outputs.unwrap()[0], ArithValue::U32(expected));
     }
 
     #[test]
     fn test_garble_mul_circuit() {
         const BATCH_SIZE: usize = 1000;
-        let encoder = ChaChaCrtEncoder::new([0; 32], 10);
+        let encoder = ChaChaCrtEncoder::new([0; 32]);
         let circ = mul_circ();
 
         let a_val = 20;
@@ -186,9 +193,20 @@ mod tests {
             .map(|(idx, output)| output.decoding(idx, deltas, &FIXED_KEY_AES))
             .collect::<Vec<CrtDecoding>>();
 
-        let outputs = ev.decode_outputs(decodings);
+        // let outputs = ev.decode_outputs(decodings);
+        //
+        // assert!(outputs.is_ok());
+        // assert_eq!(outputs.unwrap()[0], expected);
+
+        let outputs: Result<Vec<ArithValue>, DecodeError> = ev
+            .outputs()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(i, encoded_output)| encoded_output.decode(i, &decodings[i]))
+            .collect();
 
         assert!(outputs.is_ok());
-        assert_eq!(outputs.unwrap()[0], expected);
+        assert_eq!(outputs.unwrap()[0], ArithValue::U32(expected));
     }
 }

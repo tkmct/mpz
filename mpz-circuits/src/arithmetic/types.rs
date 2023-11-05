@@ -221,8 +221,19 @@ pub enum CrtValueType {
     U32,
 }
 
+impl CrtValueType {
+    /// returns the length of moduli array
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        match self {
+            CrtValueType::Bool => 1,
+            CrtValueType::U32 => 10,
+        }
+    }
+}
+
 /// Actual arithmetic value which can be encoded into Crt representation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(missing_docs)]
 pub enum ArithValue {
     Bool(bool),
@@ -235,6 +246,14 @@ impl ArithValue {
         match self {
             Self::Bool(_) => CrtValueType::Bool,
             Self::U32(_) => CrtValueType::U32,
+        }
+    }
+
+    /// Returns length of the value represented in CRT
+    pub fn num_wire(&self) -> usize {
+        match self {
+            Self::Bool(_) => 1,
+            Self::U32(_) => 10,
         }
     }
 }
