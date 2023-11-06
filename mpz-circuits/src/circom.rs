@@ -908,14 +908,21 @@ impl RuntimeExecutionContext {
     // }
 
     pub fn assign_var (&mut self, var_name: &String) -> u32 {
-        self.vars.insert(var_name.to_string(), 0);
-        self.exevars.insert(var_name.to_string(), false);
-        0
+        let mut var_val = 0;
+        if self.exevars.contains_key(var_name) {
+            var_val = self.get_var_val(var_name);
+            self.vars.insert(var_name.to_string(), var_val);
+        } else {
+            self.vars.insert(var_name.to_string(), 0);
+            self.exevars.insert(var_name.to_string(), false);
+        }
+        var_val
     }
 
     pub fn assign_var_val (&mut self, var_name: &String, var_val: u32) -> u32 {
         self.vars.insert(var_name.to_string(), var_val);
         self.exevars.insert(var_name.to_string(), true);
+        println!("Now {} has val {}", var_name, var_val);
         var_val
     }
 
@@ -1231,12 +1238,12 @@ fn execute_infix_op (
 ) -> (u32,bool) {
     // let current = runtime.get_current_runtime_context();
     let mut can_execute_infix = true;
-    if runtime.can_get_var_val_from_current_context(input_lhs) {
-        println!("[Execute] can get lhs var val {}", input_lhs);
+    if !runtime.can_get_var_val_from_current_context(input_lhs) {
+        println!("[Execute] cannot get lhs var val {}", input_lhs);
         can_execute_infix = false;
     }
-    if runtime.can_get_var_val_from_current_context(input_rhs) {
-        println!("[Execute] can get rhs var val {}", input_rhs);
+    if !runtime.can_get_var_val_from_current_context(input_rhs) {
+        println!("[Execute] cannot get rhs var val {}", input_rhs);
         can_execute_infix = false;
     }
     println!("[Execute] can execute infix {}", can_execute_infix);
@@ -1336,6 +1343,24 @@ fn traverse_infix_op (
     infixop: ExpressionInfixOpcode
 ) {
     // let current = runtime.get_current_runtime_context();
+
+    // For now skip traversal if can execute
+
+    let mut can_execute_infix = true;
+    if !runtime.can_get_var_val_from_current_context(input_lhs) {
+        println!("[Traverse] cannot get lhs var val {}", input_lhs);
+        can_execute_infix = false;
+    }
+    if !runtime.can_get_var_val_from_current_context(input_rhs) {
+        println!("[Traverse] cannot get rhs var val {}", input_rhs);
+        can_execute_infix = false;
+    }
+    println!("[Traverse] can execute infix {}", can_execute_infix);
+
+    if can_execute_infix {
+        return;
+    }
+
     let lhsvar_id = runtime.get_var_from_current_context(input_lhs);
     let rhsvar_id = runtime.get_var_from_current_context(input_rhs);
     let var_id = runtime.assign_var_to_current_context(output);
@@ -1435,7 +1460,7 @@ fn execute_expression (
             let (varrop,rhsb) = execute_expression(ac, runtime, &varrhs, rhe, program_archive);
             println!("[Execute] rhs {} {}", varrop, rhsb);
             let (res,rb) = execute_infix_op(ac, runtime, var, &varlop, &varrop, *infix_op);
-            println!("[Execute] res {}", res);
+            println!("[Execute] infix out res {}", res);
             (res.to_string(),rb)
         }
         PrefixOp { meta, prefix_op, rhe } => {
@@ -1465,8 +1490,11 @@ fn execute_expression (
                 }
             }
             if runtime.can_get_var_val_from_current_context(&name_access) {
-                println!("[Execute] Return var value {} = {}", name_access, runtime.get_var_val_from_current_context(&name_access).to_string());
-                return (runtime.get_var_val_from_current_context(&name_access).to_string(),true);
+                let var_val = runtime.get_var_val_from_current_context(&name_access).to_string();
+                println!("[Execute] Return var value {} = {}", name_access, var_val);
+                runtime.assign_var_to_current_context(&var_val);
+                runtime.assign_var_val_to_current_context(&var_val, var_val.parse::<u32>().unwrap());
+                return (var_val,true);
             }
             (name_access.to_string(),false)
         },
@@ -1542,6 +1570,13 @@ fn traverse_expression (
                         println!("[Traverse] Component access found");
                     }
                 }
+            }
+            if runtime.can_get_var_val_from_current_context(&name_access) {
+                let var_val = runtime.get_var_val_from_current_context(&name_access).to_string();
+                println!("[Traverse] Return var value {} = {}", name_access, var_val);
+                runtime.assign_var_to_current_context(&var_val);
+                runtime.assign_var_val_to_current_context(&var_val, var_val.parse::<u32>().unwrap());
+                return var_val.to_string();
             }
             name_access.to_string()
         },
@@ -2011,11 +2046,11 @@ fn traverse_statement (
         While { cond, stmt, .. } => loop {
             let var = String::from("while");
             let (res, rb) = execute_expression(ac, runtime, &var, cond, program_archive);
-            println!("[Traverse] While res = {} {}", res, rb);
-            traverse_statement(ac, runtime, stmt, program_archive);
             if res.contains("0") {
                 break;
             }
+            println!("[Traverse] While res = {} {}", res, rb);
+            traverse_statement(ac, runtime, stmt, program_archive);
             // traverse_expression(ac, runtime, var, cond, program_archive);
             // let var = String::from("while");
             // ac.add_var(&var, SignalType::Intermediate);
@@ -2133,7 +2168,6 @@ fn traverse_sequence_of_statements (
     if is_complete_template{
         //execute_delayed_declarations(program_archive, runtime, actual_node, flags)?;
     }
-    ac.print_ac();
 }
 
 pub fn traverse_program (
@@ -2164,6 +2198,8 @@ pub fn traverse_program (
         let template_body = program_archive.get_template_data(id).get_body_as_vec();
 
         traverse_sequence_of_statements(&mut ac, &mut runtime, template_body, program_archive, true);
+
+        ac.print_ac();
         
         // let folded_value_result = 
         //     if let Call { id, args, .. } = &program_archive.get_main_expression() {
