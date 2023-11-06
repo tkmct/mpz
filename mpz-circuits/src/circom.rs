@@ -1219,9 +1219,13 @@ impl ArithmeticCircuit {
     // }
 
     pub fn print_ac(&self) {
-        for (ank, anv) in self.gates.iter() {
-            println!("Gate {}: {} = {} [{}] {}", ank, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
+        for i in 1..self.gate_count {
+            let anv = self.gates.get(&(i)).unwrap();
+            println!("Gate {}: {} = {} [{}] {}", i, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
         }
+        // for (ank, anv) in self.gates.iter() {
+        //     println!("Gate {}: {} = {} [{}] {}", ank, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
+        // }
     }
 }
 
