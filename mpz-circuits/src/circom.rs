@@ -866,6 +866,10 @@ impl RuntimeContext {
         *self.vars.get(var_name).unwrap()
     }
 
+    pub fn can_get_var_val(&self, var_name: &String) -> bool {
+        self.execution.can_get_var_val(var_name)
+    }
+
     pub fn get_var_val(&self, var_name: &String) -> u32 {
         *self.execution.vars.get(var_name).unwrap()
     }
@@ -905,6 +909,7 @@ impl RuntimeExecutionContext {
 
     pub fn assign_var (&mut self, var_name: &String) -> u32 {
         self.vars.insert(var_name.to_string(), 0);
+        self.exevars.insert(var_name.to_string(), false);
         0
     }
 
@@ -1017,6 +1022,10 @@ impl CircomRuntime {
         let current = self.get_current_runtime_context_mut();
         current.assign_var(var, var_id)
     }
+    pub fn can_get_var_val_from_current_context (&self, var: &String) -> bool {
+        let current = self.get_current_runtime_context();
+        current.can_get_var_val(var)
+    }
     pub fn get_var_val_from_current_context (&self, var: &String) -> u32 {
         let current = self.get_current_runtime_context();
         current.get_var_val(var)
@@ -1081,7 +1090,11 @@ pub enum AGateType {
     AMul,
     ADiv,
     AEq,
-    ANeq
+    ANeq,
+    ALEq,
+    AGEq,
+    ALt,
+    AGt
 }
 
 impl fmt::Display for AGateType {
@@ -1094,6 +1107,10 @@ impl fmt::Display for AGateType {
             AGateType::ADiv => write!(f, "ADiv"),
             AGateType::AEq => write!(f, "AEq"),
             AGateType::ANeq => write!(f, "ANEq"),
+            AGateType::ALEq => write!(f, "ALEq"),
+            AGateType::AGEq => write!(f, "AGEq"),
+            AGateType::ALt => write!(f, "ALt"),
+            AGateType::AGt => write!(f, "AGt"),
         }
     }
 }
@@ -1211,10 +1228,27 @@ fn execute_infix_op (
     input_lhs: &String,
     input_rhs: &String,
     infixop: ExpressionInfixOpcode
-) -> u32 {
+) -> (u32,bool) {
     // let current = runtime.get_current_runtime_context();
+    let mut can_execute_infix = true;
+    if runtime.can_get_var_val_from_current_context(input_lhs) {
+        println!("[Execute] can get lhs var val {}", input_lhs);
+        can_execute_infix = false;
+    }
+    if runtime.can_get_var_val_from_current_context(input_rhs) {
+        println!("[Execute] can get rhs var val {}", input_rhs);
+        can_execute_infix = false;
+    }
+    println!("[Execute] can execute infix {}", can_execute_infix);
+
+    if !can_execute_infix {
+        return (0,false);
+    }
+
     let lhsvar_val = runtime.get_var_val_from_current_context(input_lhs);
+    println!("[Execute] infix lhs = {}", lhsvar_val);
     let rhsvar_val = runtime.get_var_val_from_current_context(input_rhs);
+    println!("[Execute] infix lhs = {}", rhsvar_val);
     let var_id = runtime.assign_var_to_current_context(output);
 
     // let var = ac.add_var(var_id, &output);
@@ -1228,22 +1262,22 @@ fn execute_infix_op (
     let mut gate_type = AGateType::AAdd;
     match infixop {
         Mul => {
-            println!("Mul op {} = {} * {}", output, input_lhs, input_rhs);
+            println!("[Execute] Mul op {} = {} * {}", output, lhsvar_val, rhsvar_val);
             gate_type = AGateType::AMul;    
             res = lhsvar_val * rhsvar_val;           
         }
         Div => {
-            println!("Div op {} = {} / {}", output, input_lhs, input_rhs);
+            println!("[Execute] Div op {} = {} / {}", output, lhsvar_val, rhsvar_val);
             gate_type = AGateType::ADiv;
             res = lhsvar_val / rhsvar_val;
         },
         Add => {
-            println!("Add op {} = {} + {}", output, input_lhs, input_rhs);
+            println!("[Execute] Add op {} = {} + {}", output, lhsvar_val, rhsvar_val);
             gate_type = AGateType::AAdd; 
             res = lhsvar_val + rhsvar_val;
         },
         Sub => {
-            println!("Sub op {} = {} - {}", output, input_lhs, input_rhs);
+            println!("[Execute] Sub op {} = {} - {}", output, lhsvar_val, rhsvar_val);
             gate_type = AGateType::ASub; 
             res = lhsvar_val - rhsvar_val;
         },
@@ -1253,28 +1287,28 @@ fn execute_infix_op (
         // ShiftL => {},
         // ShiftR => {},
         LesserEq => {
-            println!("LesserEq op {} = {} <= {}", output, input_lhs, input_rhs);
+            println!("[Execute] LesserEq op {} = {} <= {}", output, lhsvar_val, rhsvar_val);
             res = if lhsvar_val <= rhsvar_val { 1 } else { 0 };
         },
         GreaterEq => {
-            println!("GreaterEq op {} = {} >= {}", output, input_lhs, input_rhs);
+            println!("[Execute] GreaterEq op {} = {} >= {}", output, lhsvar_val, rhsvar_val);
             res = if lhsvar_val >= rhsvar_val { 1 } else { 0 };
         },
         Lesser => {
-            println!("Lesser op {} = {} < {}", output, input_lhs, input_rhs);
+            println!("[Execute] Lesser op {} = {} < {}", output, lhsvar_val, rhsvar_val);
             res = if lhsvar_val < rhsvar_val { 1 } else { 0 };
         },
         Greater => {
-            println!("Greater op {} = {} > {}", output, input_lhs, input_rhs);
+            println!("[Execute] Greater op {} = {} > {}", output, lhsvar_val, rhsvar_val);
             res = if lhsvar_val > rhsvar_val { 1 } else { 0 };
         },
         Eq => {
-            println!("Eq op {} = {} == {}", output, input_lhs, input_rhs);
+            println!("[Execute] Eq op {} = {} == {}", output,lhsvar_val, rhsvar_val);
             gate_type = AGateType::AEq;  
             res = if lhsvar_val == rhsvar_val { 1 } else { 0 };
         },
         NotEq => {
-            println!("Neq op {} = {} != {}", output, input_lhs, input_rhs);
+            println!("[Execute] Neq op {} = {} != {}", output, lhsvar_val, rhsvar_val);
             gate_type = AGateType::ANeq; 
             res = if lhsvar_val != rhsvar_val { 1 } else { 0 };
         },
@@ -1287,7 +1321,8 @@ fn execute_infix_op (
             unreachable!()
         }
     };
-    res
+    println!("[Execute] infix res = {}", res);
+    (res,true)
     // ac.add_gate(&output, var_id, lhsvar_id, rhsvar_id, gate_type);
 
 }
@@ -1314,19 +1349,19 @@ fn traverse_infix_op (
     let mut gate_type = AGateType::AAdd;
     match infixop {
         Mul => {
-            println!("Mul op {} = {} * {}", output, input_lhs, input_rhs);
+            println!("[Traverse] Mul op {} = {} * {}", output, input_lhs, input_rhs);
             gate_type = AGateType::AMul;               
         }
         Div => {
-            println!("Div op {} = {} / {}", output, input_lhs, input_rhs);
+            println!("[Traverse] Div op {} = {} / {}", output, input_lhs, input_rhs);
             gate_type = AGateType::ADiv;
         },
         Add => {
-            println!("Add op {} = {} + {}", output, input_lhs, input_rhs);
+            println!("[Traverse] Add op {} = {} + {}", output, input_lhs, input_rhs);
             gate_type = AGateType::AAdd; 
         },
         Sub => {
-            println!("Sub op {} = {} - {}", output, input_lhs, input_rhs);
+            println!("[Traverse] Sub op {} = {} - {}", output, input_lhs, input_rhs);
             gate_type = AGateType::ASub; 
         },
         // Pow => {},
@@ -1334,16 +1369,28 @@ fn traverse_infix_op (
         // Mod => {},
         // ShiftL => {},
         // ShiftR => {},
-        // LesserEq => {},
-        // GreaterEq => {},
-        // Lesser => {},
-        // Greater => {},
+        LesserEq => {
+            println!("[Traverse] LEq op {} = {} == {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::ALEq;  
+        },
+        GreaterEq => {
+            println!("[Traverse] GEq op {} = {} == {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::AGEq;  
+        },
+        Lesser => {
+            println!("[Traverse] Ls op {} = {} == {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::ALt;  
+        },
+        Greater => {
+            println!("[Traverse] Gt op {} = {} == {}", output, input_lhs, input_rhs);
+            gate_type = AGateType::AGt;  
+        },
         Eq => {
-            println!("Eq op {} = {} == {}", output, input_lhs, input_rhs);
+            println!("[Traverse] Eq op {} = {} == {}", output, input_lhs, input_rhs);
             gate_type = AGateType::AEq;  
         },
         NotEq => {
-            println!("Neq op {} = {} != {}", output, input_lhs, input_rhs);
+            println!("[Traverse] Neq op {} = {} != {}", output, input_lhs, input_rhs);
             gate_type = AGateType::ANeq; 
         },
         // BoolOr => {},
@@ -1366,66 +1413,77 @@ fn execute_expression (
     var: &String,
     expr: &Expression,
     program_archive: &ProgramArchive
-) -> String {
+) -> (String,bool) {
 
     use Expression::*;
     // let mut can_be_simplified = true;
     match expr {
         Number(_, value) => {
-            // let var_id = runtime.assign_var_to_current_context(&value.to_string());
+            let var_id = runtime.assign_var_to_current_context(&value.to_string());
+            runtime.assign_var_val_to_current_context(&value.to_string(), value.to_u32().unwrap());
             // ac.add_const_var(var_id, value.to_u32().unwrap());
-            value.to_string()
+            println!("[Execute] Number value {}", value);
+            (value.to_string(),true)
         },
         InfixOp { meta, lhe, infix_op, rhe, .. } => {
             let varlhs = runtime.assign_auto_var_to_current_context();
+            println!("[Execute] Auto var for lhs {}", varlhs);
             let varrhs = runtime.assign_auto_var_to_current_context();
-            let varlop = execute_expression(ac, runtime, &varlhs, lhe, program_archive);
-            let varrop = execute_expression(ac, runtime, &varrhs, rhe, program_archive);
-            let res = execute_infix_op(ac, runtime, var, &varlop, &varrop, *infix_op);
-            res.to_string()
+            println!("[Execute] Auto var for rhs {}", varrhs);
+            let (varlop,lhsb) = execute_expression(ac, runtime, &varlhs, lhe, program_archive);
+            println!("[Execute] lhs {} {}", varlop, lhsb);
+            let (varrop,rhsb) = execute_expression(ac, runtime, &varrhs, rhe, program_archive);
+            println!("[Execute] rhs {} {}", varrop, rhsb);
+            let (res,rb) = execute_infix_op(ac, runtime, var, &varlop, &varrop, *infix_op);
+            println!("[Execute] res {}", res);
+            (res.to_string(),rb)
         }
         PrefixOp { meta, prefix_op, rhe } => {
             println!("Prefix found ");
-            var.to_string()
+            (var.to_string(),false)
         },
         InlineSwitchOp { meta, cond, if_true, if_false } => todo!(),
         ParallelOp { meta, rhe } => todo!(),
         Variable { meta, name, access } => {
             let mut name_access = String::from(name);
-            println!("Variable found {}", name.to_string());
+            println!("[Execute] Variable found {}", name.to_string());
             for a in access.iter() {
                 match a {
                     Access::ArrayAccess(expr) => {
-                        println!("Array access found");
+                        println!("[Execute] Array access found");
                         // let mut dim_u32_vec = Vec::new();
                         let dim_u32_str = 
                             traverse_expression(ac, runtime, var, expr, program_archive);
                         // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
                         name_access.push_str("_");
                         name_access.push_str(dim_u32_str.as_str());
-                        println!("Change var name to {}", name_access);
+                        println!("[Execute] Change var name to {}", name_access);
                     },
                     Access::ComponentAccess(name) => {
                         println!("Component access found");
                     }
                 }
             }
-            name_access.to_string()
+            if runtime.can_get_var_val_from_current_context(&name_access) {
+                println!("[Execute] Return var value {} = {}", name_access, runtime.get_var_val_from_current_context(&name_access).to_string());
+                return (runtime.get_var_val_from_current_context(&name_access).to_string(),true);
+            }
+            (name_access.to_string(),false)
         },
         Call { meta, id, args } => {
             println!("Call found {}", id.to_string());
             // find the template and execute it
-            id.to_string()
+            (id.to_string(),false)
         },
         AnonymousComp { meta, id, is_parallel, params, signals, names } => todo!(),
         ArrayInLine { meta, values } => {
             println!("ArrayInLine found");
-            var.to_string()
+            (var.to_string(),false)
         },
         Tuple { meta, values } => todo!(),
         UniformArray { meta, value, dimension } => {
             println!("UniformArray found");
-            var.to_string()
+            (var.to_string(),false)
         },
     }
 }
@@ -1444,13 +1502,18 @@ fn traverse_expression (
         Number(_, value) => {
             let var_id = runtime.assign_var_to_current_context(&value.to_string());
             ac.add_const_var(var_id, value.to_u32().unwrap());
+            println!("[Traverse] Number value {}", value);
             value.to_string()
         },
         InfixOp { meta, lhe, infix_op, rhe, .. } => {
             let varlhs = runtime.assign_auto_var_to_current_context();
+            println!("[Traverse] Auto var for lhs {}", varlhs);
             let varrhs = runtime.assign_auto_var_to_current_context();
+            println!("[Traverse] Auto var for rhs {}", varlhs);
             let varlop = traverse_expression(ac, runtime, &varlhs, lhe, program_archive);
+            println!("[Traverse] lhs {}", varlop);
             let varrop = traverse_expression(ac, runtime, &varrhs, rhe, program_archive);
+            println!("[Traverse] rhs {}", varlop);
             traverse_infix_op(ac, runtime, var, &varlop, &varrop, *infix_op);
             var.to_string()
         }
@@ -1462,21 +1525,21 @@ fn traverse_expression (
         ParallelOp { meta, rhe } => todo!(),
         Variable { meta, name, access } => {
             let mut name_access = String::from(name);
-            println!("Variable found {}", name.to_string());
+            println!("[Traverse] Variable found {}", name.to_string());
             for a in access.iter() {
                 match a {
                     Access::ArrayAccess(expr) => {
-                        println!("Array access found");
+                        println!("[Traverse] Array access found");
                         // let mut dim_u32_vec = Vec::new();
                         let dim_u32_str = 
                             traverse_expression(ac, runtime, var, expr, program_archive);
                         // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
                         name_access.push_str("_");
                         name_access.push_str(dim_u32_str.as_str());
-                        println!("Change var name to {}", name_access);
+                        println!("[Traverse] Change var name to {}", name_access);
                     },
                     Access::ComponentAccess(name) => {
-                        println!("Component access found");
+                        println!("[Traverse] Component access found");
                     }
                 }
             }
@@ -1569,7 +1632,7 @@ fn execute_statement (
     match stmt {
         InitializationBlock { initializations, .. } => {
             for istmt in initializations.iter() {
-                traverse_statement(ac, runtime, istmt, program_archive);
+                execute_statement(ac, runtime, istmt, program_archive);
             }
         }
         Declaration { meta, xtype, name, dimensions, .. } => {
@@ -1693,9 +1756,9 @@ fn execute_statement (
         },
         While { cond, stmt, .. } => loop {
             let var = String::from("while");
-            let res = execute_expression(ac, runtime, &var, cond, program_archive);
-            println!("res = {}", res);
-            traverse_statement(ac, runtime, stmt, program_archive);
+            let (res,rb) = execute_expression(ac, runtime, &var, cond, program_archive);
+            println!("[Execute] res = {} {}", res, rb);
+            execute_statement(ac, runtime, stmt, program_archive);
             if res.contains("0") {
                 break;
             }
@@ -1767,27 +1830,30 @@ fn execute_statement (
         }
         Substitution { meta, var, access, op, rhe, .. } => {
             let mut name_access = String::from(var);
-            println!("Variable found {}", var.to_string());
+            println!("[Execute] Variable found {}", var.to_string());
             for a in access.iter() {
                 match a {
                     Access::ArrayAccess(expr) => {
-                        println!("Array access found");
+                        println!("[Execute] Array access found");
                         // let mut dim_u32_vec = Vec::new();
                         let dim_u32_str = 
                             traverse_expression(ac, runtime, var, expr, program_archive);
                         // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
                         name_access.push_str("_");
                         name_access.push_str(dim_u32_str.as_str());
-                        println!("Change var name to {}", name_access);
+                        println!("[Execute] Change var name to {}", name_access);
                     },
                     Access::ComponentAccess(name) => {
                         println!("Component access not handled");
                     }
                 }
             }
-            let rhs = execute_expression(ac, runtime, &name_access, rhe, program_archive);
-            println!("Assigning {} to {}", rhs, &name_access);
-            runtime.assign_var_val_to_current_context(&name_access, rhs.parse::<u32>().unwrap());
+            let (rhs,rhsb) = execute_expression(ac, runtime, &name_access, rhe, program_archive);
+            println!("[Execute] Assigning {} ? {} to {}", rhs, rhsb, &name_access);
+            if rhsb {
+                println!("[Execute] Assigning {} to {}", rhs, &name_access);
+                runtime.assign_var_val_to_current_context(&name_access, rhs.parse::<u32>().unwrap());
+            }
         }
         Block { stmts, .. } => {
             traverse_sequence_of_statements(ac, runtime, stmts, program_archive, true);
@@ -1824,7 +1890,7 @@ fn traverse_statement (
             }
         }
         Declaration { meta, xtype, name, dimensions, .. } => {
-            println!("Declaration of {}", name);
+            println!("[Traverse] Declaration of {}", name);
             match xtype {
                 // VariableType::AnonymousComponent => {
                 //     execute_anonymous_component_declaration(
@@ -1944,8 +2010,8 @@ fn traverse_statement (
         },
         While { cond, stmt, .. } => loop {
             let var = String::from("while");
-            let res = execute_expression(ac, runtime, &var, cond, program_archive);
-            println!("res = {}", res);
+            let (res, rb) = execute_expression(ac, runtime, &var, cond, program_archive);
+            println!("[Traverse] While res = {} {}", res, rb);
             traverse_statement(ac, runtime, stmt, program_archive);
             if res.contains("0") {
                 break;
@@ -2018,26 +2084,26 @@ fn traverse_statement (
         }
         Substitution { meta, var, access, op, rhe, .. } => {
             let mut name_access = String::from(var);
-            println!("Variable found {}", var.to_string());
+            println!("[Traverse] Sub Variable found {}", var.to_string());
             for a in access.iter() {
                 match a {
                     Access::ArrayAccess(expr) => {
-                        println!("Array access found");
+                        println!("[Traverse] Sub Array access found");
                         // let mut dim_u32_vec = Vec::new();
                         let dim_u32_str = 
                             traverse_expression(ac, runtime, var, expr, program_archive);
                         // dim_u32_vec.push(dim_u32_str.parse::<u32>().unwrap());
                         name_access.push_str("_");
                         name_access.push_str(dim_u32_str.as_str());
-                        println!("Change var name to {}", name_access);
+                        println!("[Traverse] Sub Change var name to {}", name_access);
                     },
                     Access::ComponentAccess(name) => {
-                        println!("Component access not handled");
+                        println!("[Traverse] Sub Component access not handled");
                     }
                 }
             }
             let rhs = traverse_expression(ac, runtime, &name_access, rhe, program_archive);
-            println!("Assigning {} to {}", rhs, &name_access);
+            println!("[Traverse] Sub Assigning {} to {}", rhs, &name_access);
             execute_statement(ac, runtime, stmt, program_archive);
         }
         Block { stmts, .. } => {
