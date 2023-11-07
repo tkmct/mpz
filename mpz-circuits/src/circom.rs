@@ -1,6 +1,8 @@
 #![allow(missing_docs)]
 #![deny(clippy::missing_docs_in_private_items)]
 
+use serde::{Serialize, Deserialize};
+
 
 // mpz crates
 use crate::{
@@ -1106,6 +1108,7 @@ impl CircomRuntime {
 
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ArithmeticVar {
     pub var_id: u32,
     pub var_name: String,
@@ -1125,7 +1128,7 @@ impl ArithmeticVar {
 }
 
 
-
+#[derive(Serialize, Deserialize, Debug)]
 pub enum AGateType {
     ANone,
     AAdd,
@@ -1158,6 +1161,8 @@ impl fmt::Display for AGateType {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+
 pub struct ArithmeticNode {
     pub gate_id: u32,
     pub gate_type: AGateType,
@@ -1172,6 +1177,7 @@ impl ArithmeticNode {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ArithmeticCircuit {
     pub gate_count: u32,
     pub var_count: u32,
@@ -1275,6 +1281,19 @@ impl ArithmeticCircuit {
         // for (ank, anv) in self.gates.iter() {
         //     println!("Gate {}: {} = {} [{}] {}", ank, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
         // }
+    }
+
+    pub fn serde(&self) {
+        let serialized = serde_json::to_string(&self).unwrap();
+
+        // Prints serialized = {"x":1,"y":2}
+        println!("serialized = {}", serialized);
+
+        // Convert the JSON string back to a Point.
+        let deserialized: ArithmeticCircuit = serde_json::from_str(&serialized).unwrap();
+
+        // Prints deserialized = Point { x: 1, y: 2 }
+        println!("deserialized = {:?}", deserialized);
     }
 }
 
@@ -2260,6 +2279,7 @@ pub fn traverse_program (
         traverse_sequence_of_statements(&mut ac, &mut runtime, template_body, program_archive, true);
 
         ac.print_ac();
+        ac.serde();
         
         // let folded_value_result = 
         //     if let Call { id, args, .. } = &program_archive.get_main_expression() {
