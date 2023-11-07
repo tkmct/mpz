@@ -5,17 +5,18 @@ pragma circom 2.0.0;
 template InnerProd () {  
 
    // Declaration of signals 
-   signal input input_A[2];  
-   signal input input_B[2];  
+   signal input input_A[3];  
+   signal input input_B[3];  
    signal output ip;
 
    var sum = 0;
    // var i = 0;
    // sum = input_A[i];
-   for (var i = 0; i < 2; i++) {
+   for (var i = 0; i < 3; i++) {
       // input_A[3] <== i;
-      var temp = input_A[i]*input_B[i];
-      sum = sum + temp;
+      // var temp = input_A[i]*input_B[i];
+      sum = sum + input_A[i]*input_B[i];
+      // sum = sum + temp;
    }
    // sum++;
    // var temp = input_A[0] * input_B[0];

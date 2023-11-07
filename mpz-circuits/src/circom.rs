@@ -18,7 +18,7 @@ use itertools::Itertools;
 
 const VERSION: &'static str = "2.0.0";
 
-use std::{path::PathBuf, collections::HashMap, hash::Hash, fmt::{Display, self, write}, ptr::null, task::Context};
+use std::{path::PathBuf, collections::HashMap, hash::Hash, fmt::{Display, self, write}, ptr::null, task::Context, thread::current};
 use ansi_term::Colour;
 
 use circom_constraint_generation::FlagsExecution;
@@ -854,12 +854,28 @@ impl RuntimeContext {
     pub fn assign_var (&mut self, var_name: &String, last_var_id: u32) -> u32 {
         self.vars.insert(var_name.to_string(), last_var_id);
         self.execution.assign_var(var_name);
+        println!("[RuntimeContext] {} is now with id {}", var_name, last_var_id);
         last_var_id
     }
 
     pub fn assign_var_val(&mut self, var_name: &String, var_val: u32) -> u32 {
+        if !self.can_get_var(var_name) {
+            return 0;
+        }
         self.execution.assign_var_val(var_name, var_val);
         var_val
+    }
+
+    pub fn deassign_var_val(&mut self, var_name: &String) -> u32 {
+        if !self.can_get_var(var_name) {
+            return 0;
+        }
+        self.execution.deassign_var_val(var_name);
+        0
+    }
+
+    pub fn can_get_var(&self, var_name: &String) -> bool {
+        self.vars.contains_key(var_name)
     }
 
     pub fn get_var(&self, var_name: &String) -> u32 {
@@ -906,15 +922,17 @@ impl RuntimeExecutionContext {
     //         }
     //     }
     // }
-
+    
     pub fn assign_var (&mut self, var_name: &String) -> u32 {
         let mut var_val = 0;
         if self.exevars.contains_key(var_name) {
             var_val = self.get_var_val(var_name);
             self.vars.insert(var_name.to_string(), var_val);
+            println!("[RuntimeExecutionContext] Now {} carries over val {}", var_name, var_val);
         } else {
             self.vars.insert(var_name.to_string(), 0);
             self.exevars.insert(var_name.to_string(), false);
+            println!("[RuntimeExecutionContext] Now {} has no val {}", var_name, var_val);
         }
         var_val
     }
@@ -922,15 +940,28 @@ impl RuntimeExecutionContext {
     pub fn assign_var_val (&mut self, var_name: &String, var_val: u32) -> u32 {
         self.vars.insert(var_name.to_string(), var_val);
         self.exevars.insert(var_name.to_string(), true);
-        println!("Now {} has val {}", var_name, var_val);
+        println!("[RuntimeExecutionContext] Now {} has val {}", var_name, var_val);
         var_val
     }
 
+    pub fn deassign_var_val (&mut self, var_name: &String) -> u32 {
+        self.vars.insert(var_name.to_string(), 0);
+        self.exevars.insert(var_name.to_string(), false);
+        println!("[RuntimeExecutionContext] Now {} has no val {}", var_name, 0);
+        0
+    }
+
     pub fn get_var_val (&self, var_name: &String) -> u32 {
+        if !self.can_get_var_val(var_name) {
+            return 0;
+        }
         *self.vars.get(var_name).unwrap()
     }
 
     pub fn can_get_var_val(&self, var_name: &String) -> bool {
+        if !self.exevars.contains_key(var_name) {
+            return false;
+        }
         *self.exevars.get(var_name).unwrap()
     }
 }
@@ -1042,13 +1073,18 @@ impl CircomRuntime {
         current.assign_var_val(var, var_val)
     }
 
+    pub fn deassign_var_val_to_current_context (&mut self, var: &String) -> u32 {
+        let current = self.get_current_runtime_context_mut();
+        current.deassign_var_val(var)
+    }
+
     pub fn assign_auto_var_to_current_context (&mut self) -> String {
         self.last_var_id += 1;
         let var_id = self.last_var_id;
         let current = self.get_current_runtime_context_mut();
         let var = format!("auto_var_{}", var_id);
         current.assign_var(&var, var_id);
-        println!("Auto var {}", var);
+        println!("[CircomRuntime] Auto var {}", var);
         var
     }
 
@@ -1064,7 +1100,7 @@ impl CircomRuntime {
         }
         let var = format!("{}{}", var, access_index);
         current.assign_var(&var, var_id);
-        println!("Array var {}", var);
+        println!("[CircomRuntime] Array var {}", var);
         (var, var_id)
     }
 
@@ -1162,6 +1198,8 @@ impl ArithmeticCircuit {
         var_id: u32,
         var_name: &str) -> &ArithmeticVar {
 
+        println!("[ArithmeticCircuit] Add var {} with id {}", var_name, var_id);
+
         // Not sure if var_count is needed
         self.var_count += 1;
 
@@ -1174,6 +1212,8 @@ impl ArithmeticCircuit {
         &mut self, 
         var_id: u32,
         var_val: u32) -> &ArithmeticVar {
+
+        println!("[ArithmeticCircuit] var {} now has value {}", var_id, var_val);
 
         // Not sure if var_count is needed
         self.var_count += 1;
@@ -1201,6 +1241,10 @@ impl ArithmeticCircuit {
             self.gate_count += 1;
             self.add_var(output_id, output_name);
             let node = ArithmeticNode::new(self.gate_count, gate_type, lhs_id, rhs_id, output_id);
+            let var_output = self.get_var(output_id);
+            let var_lhs = self.get_var(lhs_id);
+            let var_rhs = self.get_var(rhs_id);
+            println!("[ArithmeticCircuit] Gate added id {}: ({}, {}, {}) = ({}, {}, {}) {} ({}, {}, {})", node.gate_id, node.output_id, var_output.is_const, var_output.const_value, node.input_lhs_id, var_lhs.is_const, var_lhs.const_value, node.gate_type.to_string(), node.input_rhs_id, var_rhs.is_const, var_rhs.const_value);
             self.gates.insert(self.gate_count, node);
         }
 
@@ -1219,9 +1263,14 @@ impl ArithmeticCircuit {
     // }
 
     pub fn print_ac(&self) {
-        for i in 1..self.gate_count {
-            let anv = self.gates.get(&(i)).unwrap();
-            println!("Gate {}: {} = {} [{}] {}", i, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
+        println!("[ArithmeticCircuit] Whole Arithmetic Circuit");
+        for i in 1..(self.gate_count+1) {
+            let node = self.gates.get(&(i)).unwrap();
+            // println!("[ArithmeticCircuit] Gate {}: {} = {} [{}] {}", i, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
+            let var_output = self.get_var(node.output_id);
+            let var_lhs = self.get_var(node.input_lhs_id);
+            let var_rhs = self.get_var(node.input_rhs_id);
+            println!("[ArithmeticCircuit] Gate id {}: ({}, {}, {}) = ({}, {}, {}) {} ({}, {}, {})", node.gate_id, node.output_id, var_output.is_const, var_output.const_value, node.input_lhs_id, var_lhs.is_const, var_lhs.const_value, node.gate_type.to_string(), node.input_rhs_id, var_rhs.is_const, var_rhs.const_value);
         }
         // for (ank, anv) in self.gates.iter() {
         //     println!("Gate {}: {} = {} [{}] {}", ank, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
@@ -1253,6 +1302,8 @@ fn execute_infix_op (
     println!("[Execute] can execute infix {}", can_execute_infix);
 
     if !can_execute_infix {
+        runtime.deassign_var_val_to_current_context(output);
+        println!("[Execute] Now mark {} as no value", output);
         return (0,false);
     }
 
@@ -1363,6 +1414,9 @@ fn traverse_infix_op (
 
     if can_execute_infix {
         return;
+    } else {
+        runtime.deassign_var_val_to_current_context(output);
+        println!("[Traverse] Now mark {} as no value", output);
     }
 
     let lhsvar_id = runtime.get_var_from_current_context(input_lhs);
@@ -1450,7 +1504,7 @@ fn execute_expression (
         Number(_, value) => {
             let var_id = runtime.assign_var_to_current_context(&value.to_string());
             runtime.assign_var_val_to_current_context(&value.to_string(), value.to_u32().unwrap());
-            // ac.add_const_var(var_id, value.to_u32().unwrap());
+            ac.add_const_var(var_id, value.to_u32().unwrap());
             println!("[Execute] Number value {}", value);
             (value.to_string(),true)
         },
@@ -1533,6 +1587,7 @@ fn traverse_expression (
     match expr {
         Number(_, value) => {
             let var_id = runtime.assign_var_to_current_context(&value.to_string());
+            runtime.assign_var_val_to_current_context(&value.to_string(), value.to_u32().unwrap());
             ac.add_const_var(var_id, value.to_u32().unwrap());
             println!("[Traverse] Number value {}", value);
             value.to_string()
@@ -1541,7 +1596,7 @@ fn traverse_expression (
             let varlhs = runtime.assign_auto_var_to_current_context();
             println!("[Traverse] Auto var for lhs {}", varlhs);
             let varrhs = runtime.assign_auto_var_to_current_context();
-            println!("[Traverse] Auto var for rhs {}", varlhs);
+            println!("[Traverse] Auto var for rhs {}", varrhs);
             let varlop = traverse_expression(ac, runtime, &varlhs, lhe, program_archive);
             println!("[Traverse] lhs {}", varlop);
             let varrop = traverse_expression(ac, runtime, &varrhs, rhe, program_archive);
@@ -1578,8 +1633,9 @@ fn traverse_expression (
             if runtime.can_get_var_val_from_current_context(&name_access) {
                 let var_val = runtime.get_var_val_from_current_context(&name_access).to_string();
                 println!("[Traverse] Return var value {} = {}", name_access, var_val);
-                runtime.assign_var_to_current_context(&var_val);
-                runtime.assign_var_val_to_current_context(&var_val, var_val.parse::<u32>().unwrap());
+                let var_id = runtime.assign_var_to_current_context(&var_val);
+                let var_val_n = runtime.assign_var_val_to_current_context(&var_val, var_val.parse::<u32>().unwrap());
+                ac.add_const_var(var_id, var_val_n);
                 return var_val.to_string();
             }
             name_access.to_string()
