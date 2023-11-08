@@ -1235,6 +1235,10 @@ impl ArithmeticCircuit {
         self.vars.get(&var_id).unwrap()
     }
 
+    pub fn get_var_mut(&mut self, var_id: u32) -> &mut ArithmeticVar {
+        self.vars.get_mut(&var_id).unwrap()
+    }
+
     //We support ADD, MUL, CADD, CMUL, DIV, CDIV, CINVERT, IFTHENELSE, FOR
 
     pub fn add_gate (
@@ -1268,9 +1272,63 @@ impl ArithmeticCircuit {
 
     // }
 
+    pub fn replace_input_var_in_gate(&mut self, var_id: u32, new_var_id: u32) {
+        for i in 1..(self.gate_count+1) {
+            if !self.gates.contains_key(&i) {
+                continue;
+            }
+            let node = self.gates.get_mut(&(i)).unwrap();
+            if node.input_lhs_id == var_id {
+                node.input_lhs_id = new_var_id;
+            }
+            if node.input_rhs_id == var_id {
+                node.input_rhs_id = new_var_id;
+            }
+        }
+    }
+
+    pub fn truncate_zero_add_gate(&mut self) {
+        let mut zero_add_gate_indice = vec![];
+        for i in 1..(self.gate_count+1) {
+            if !self.gates.contains_key(&i) {
+                continue;
+            }
+            let node = self.gates.get(&(i)).unwrap();
+            match node.gate_type {
+                AGateType::AAdd => {
+                    let var_output = self.get_var(node.output_id);
+                    let var_lhs = self.get_var(node.input_lhs_id);
+                    let var_rhs = self.get_var(node.input_rhs_id);
+                    if var_lhs.is_const && var_lhs.const_value == 0 {
+                        // var_output.var_id = var_rhs.var_id;
+                        // var_output.var_name = var_rhs.var_name.to_string();
+                        self.replace_input_var_in_gate(var_output.var_id, var_rhs.var_id);
+                        zero_add_gate_indice.push(i);
+                    } else if var_rhs.is_const && var_rhs.const_value == 0 {
+                        // var_output.var_id = var_lhs.var_id;
+                        // var_output.var_name = var_lhs.var_name;
+                        self.replace_input_var_in_gate(var_output.var_id, var_lhs.var_id);
+                        zero_add_gate_indice.push(i);
+                    } else {
+                        continue;
+                    }
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+        for i in zero_add_gate_indice.iter() {
+            self.gates.remove(i);
+        }
+    }
+
     pub fn print_ac(&self) {
         println!("[ArithmeticCircuit] Whole Arithmetic Circuit");
         for i in 1..(self.gate_count+1) {
+            if !self.gates.contains_key(&i) {
+                continue;
+            }
             let node = self.gates.get(&(i)).unwrap();
             // println!("[ArithmeticCircuit] Gate {}: {} = {} [{}] {}", i, anv.output_id, anv.input_lhs_id, anv.gate_type.to_string(), anv.input_rhs_id);
             let var_output = self.get_var(node.output_id);
@@ -2278,6 +2336,8 @@ pub fn traverse_program (
 
         traverse_sequence_of_statements(&mut ac, &mut runtime, template_body, program_archive, true);
 
+        ac.print_ac();
+        ac.truncate_zero_add_gate();
         ac.print_ac();
         ac.serde();
         
