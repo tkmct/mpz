@@ -17,7 +17,10 @@ use mpz_core::{
 };
 use mpz_garble_core::{
     bmr16::evaluator::{BMR16Evaluator as EvaluatorCore, EvaluatorError as BMR16EvaluatorError},
-    encoding::{crt_encoding_state as encoding_state, CrtDecoding, DecodeError, EncodedCrtValue},
+    encoding::{
+        crt_encoding_state::{self as encoding_state, LabelState},
+        CrtDecoding, DecodeError, EncodedCrtValue,
+    },
     msg::GarbleMessage,
 };
 
@@ -115,9 +118,9 @@ impl<const N: usize> BMR16Evaluator<N> {
     }
 
     /// Adds a decoding log entry.
-    pub(crate) fn add_decoding_log(&self, value: &ValueRef, decoding: CrtDecoding) {
-        self.state().decoding_logs.insert(value.clone(), decoding);
-    }
+    // pub(crate) fn add_decoding_log(&self, value: &ValueRef, decoding: CrtDecoding) {
+    //     self.state().decoding_logs.insert(value.clone(), decoding);
+    // }
 
     /// setup inputs for evaluator
     pub async fn setup_inputs<
@@ -188,6 +191,8 @@ impl<const N: usize> BMR16Evaluator<N> {
             values.iter().cloned().unzip();
 
         let active_encodings = ot.receive_arith(id, ot_recv_values).await?;
+        println!("[EV] Encodings of evaluators inputs");
+        print_encodings(&active_encodings);
 
         // Make sure the generator sent the expected number of values.
         // This should be handled by the ot receiver, but we double-check anyways :)
@@ -238,6 +243,8 @@ impl<const N: usize> BMR16Evaluator<N> {
         }
 
         let active_encodings = expect_msg_or_err!(stream, GarbleMessage::ActiveCrtValues)?;
+        println!("[EV] Encodings of generator's inputs");
+        print_encodings(&active_encodings);
 
         // Make sure the generator sent the expected number of values.
         if active_encodings.len() != values.len() {
@@ -298,7 +305,10 @@ impl<const N: usize> BMR16Evaluator<N> {
         while !ev.is_complete() {
             println!("[EV] Waiting for incoming message...");
             let encrypted_gates = expect_msg_or_err!(stream, GarbleMessage::ArithEncryptedGates)?;
-            println!("[EV] Got encrypted gate message");
+            println!("[EV] Got encrypted gates");
+            encrypted_gates.iter().for_each(|gate| {
+                println!("EncryptedGate({})", gate);
+            });
 
             for batch in encrypted_gates.chunks(self.config.batch_size) {
                 let batch = batch.to_vec();
@@ -334,6 +344,8 @@ impl<const N: usize> BMR16Evaluator<N> {
     ) -> Result<Vec<ArithValue>, EvaluatorError> {
         println!("[EV] decode() start");
         let decodings = expect_msg_or_err!(stream, GarbleMessage::CrtValueDecodings)?;
+        println!("[EV] Received decoding info from generator");
+        print_decodings(&decodings);
 
         // Make sure the generator sent the expected number of decodings.
         if decodings.len() != values.len() {
@@ -391,31 +403,37 @@ struct State {
     /// OT logs
     ot_log: HashMap<String, Vec<ValueId>>,
     /// Garbled circuit logs
-    circuit_logs: Vec<BMR16EvaluatorLog>,
+    _circuit_logs: Vec<BMR16EvaluatorLog>,
     /// Decodings of values received from the generator
-    decoding_logs: HashMap<ValueRef, CrtDecoding>,
+    _decoding_logs: HashMap<ValueRef, CrtDecoding>,
 }
 
 #[derive(Debug)]
 pub(crate) struct BMR16EvaluatorLog {
-    inputs: Vec<ValueRef>,
-    outputs: Vec<ValueRef>,
-    circ: Arc<ArithmeticCircuit>,
-    hash: Hash,
+    _inputs: Vec<ValueRef>,
+    _outputs: Vec<ValueRef>,
+    _circ: Arc<ArithmeticCircuit>,
+    _hash: Hash,
+}
+// impl BMR16EvaluatorLog {
+//     pub(crate) fn new(
+//         inputs: Vec<ValueRef>,
+//         outputs: Vec<ValueRef>,
+//         circ: Arc<ArithmeticCircuit>,
+//         digest: Hash,
+//     ) -> Self {
+//         Self {
+//             _inputs: inputs,
+//             _outputs: outputs,
+//             _circ: circ,
+//             _hash: digest,
+//         }
+//     }
+// }
+fn print_encodings<T: LabelState>(encodings: &[EncodedCrtValue<T>]) {
+    encodings.iter().for_each(|v| println!("{}", v));
 }
 
-impl BMR16EvaluatorLog {
-    pub(crate) fn new(
-        inputs: Vec<ValueRef>,
-        outputs: Vec<ValueRef>,
-        circ: Arc<ArithmeticCircuit>,
-        digest: Hash,
-    ) -> Self {
-        Self {
-            inputs,
-            outputs,
-            circ,
-            hash: digest,
-        }
-    }
+fn print_decodings(decodings: &[CrtDecoding]) {
+    decodings.iter().for_each(|dec| println!("{}", dec));
 }

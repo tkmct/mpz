@@ -1,6 +1,9 @@
 use bytemuck::cast;
 
-use mpz_core::aes::{FixedKeyAes, FIXED_KEY_AES};
+use mpz_core::{
+    aes::{FixedKeyAes, FIXED_KEY_AES},
+    commit::HashCommit,
+};
 use rand::{CryptoRng, Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
@@ -12,6 +15,8 @@ use mpz_circuits::arithmetic::{
 };
 
 use crate::encoding::{utils::unrank, Block};
+
+use hex::encode;
 
 const DELTA_STREAM_ID: u64 = u64::MAX;
 
@@ -154,6 +159,17 @@ impl Default for LabelModN {
     }
 }
 
+impl std::fmt::Display for LabelModN {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Label(q:{}, {:#?})",
+            self.modulus,
+            hex::encode(self.inner.clone().hash_commit().1.as_bytes())
+        )
+    }
+}
+
 /// Delta for generalized Free-XOR
 pub type CrtDelta = LabelModN;
 
@@ -214,6 +230,18 @@ impl Labels<state::Active> {
             _state: state::Active {},
             labels,
         }
+    }
+}
+
+impl<T: LabelState> std::fmt::Display for Labels<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let res = self
+            .labels
+            .iter()
+            .map(|label| format!("\n{}\n", label))
+            .collect::<Vec<_>>()
+            .concat();
+        write!(f, "{}", res)
     }
 }
 
@@ -339,6 +367,12 @@ impl From<Vec<LabelModN>> for EncodedCrtValue<state::Active> {
     }
 }
 
+impl<T: LabelState> std::fmt::Display for EncodedCrtValue<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EncodedCrtValue {}", self.0)
+    }
+}
+
 /// Chacha encoder for CRT representation
 pub struct ChaChaCrtEncoder<const N: usize> {
     seed: [u8; 32],
@@ -420,6 +454,28 @@ impl CrtDecoding {
     /// get label by indcies
     pub fn get(&self, i: usize, j: usize) -> Option<&LabelModN> {
         self.0.get(i)?.get(j)
+    }
+}
+
+impl std::fmt::Display for CrtDecoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut res = String::new();
+        res.push_str(
+            &self
+                .0
+                .iter()
+                .map(|inner| {
+                    inner
+                        .iter()
+                        .map(|label| format!("\t{}\n", label))
+                        .collect::<Vec<_>>()
+                        .concat()
+                })
+                .collect::<Vec<_>>()
+                .concat(),
+        );
+
+        write!(f, "CrtDecoding\n{}", res)
     }
 }
 

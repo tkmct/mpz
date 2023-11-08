@@ -99,7 +99,7 @@ impl<const N: usize> BMR16Generator<N> {
         sink: &mut S,
         ot: &OT,
     ) -> Result<(), GeneratorError> {
-        println!("[GEN] setup_inputs() start");
+        // println!("[GEN] setup_inputs() start");
         let mut ot_send_values = Vec::new();
         let mut direct_send_values = Vec::new();
         for config in input_configs.iter().cloned() {
@@ -122,7 +122,7 @@ impl<const N: usize> BMR16Generator<N> {
             self.direct_send_active_encodings(&direct_send_values, sink)
         )?;
 
-        println!("[GEN] setup_inputs() done");
+        // println!("[GEN] setup_inputs() done");
         Ok(())
     }
 
@@ -132,7 +132,7 @@ impl<const N: usize> BMR16Generator<N> {
         values: &[(ValueId, CrtValueType)],
         ot: &OT,
     ) -> Result<(), GeneratorError> {
-        println!("[GEN] ot_send_active_encodings() start");
+        // println!("[GEN] ot_send_active_encodings() start");
         if values.is_empty() {
             return Ok(());
         }
@@ -158,14 +158,14 @@ impl<const N: usize> BMR16Generator<N> {
         let deltas = encoder.deltas();
         let mut rng = encoder.get_rng(0);
 
-        println!("[GEN] ot.send_arith() start");
+        // println!("[GEN] ot.send_arith() start");
         let bases = ot.send_arith(id, full_encodings, deltas, &mut rng).await?;
-        println!("[GEN] ot.send_arith() done");
+        // println!("[GEN] ot.send_arith() done");
         for (labels, (v_id, _)) in bases.into_iter().zip(values) {
             let encoding = EncodedCrtValue::<encoding_state::Full>::from(labels);
             let _ = state.encoding_registry.set_encoding_by_id(v_id, encoding);
         }
-        println!("[GEN] ot_send_active_encodings() done");
+        // println!("[GEN] ot_send_active_encodings() done");
 
         Ok(())
     }
@@ -183,7 +183,7 @@ impl<const N: usize> BMR16Generator<N> {
         values: &[(ValueId, ArithValue)],
         sink: &mut S,
     ) -> Result<(), GeneratorError> {
-        println!("[GEN] direct_send_active_encodings() start");
+        // println!("[GEN] direct_send_active_encodings() start");
         if values.is_empty() {
             return Ok(());
         }
@@ -208,11 +208,11 @@ impl<const N: usize> BMR16Generator<N> {
                 .collect::<Result<Vec<_>, GeneratorError>>()?
         };
 
-        println!("[GEN] sink.send(ActiveCrtValues) start");
+        // println!("[GEN] sink.send(ActiveCrtValues) start");
         sink.send(GarbleMessage::ActiveCrtValues(active_encodings))
             .await?;
-        println!("[GEN] sink.send(ActiveCrtValues) done");
-        println!("[GEN] direct_send_active_encodings() done");
+        // println!("[GEN] sink.send(ActiveCrtValues) done");
+        // println!("[GEN] direct_send_active_encodings() done");
 
         Ok(())
     }
@@ -227,7 +227,7 @@ impl<const N: usize> BMR16Generator<N> {
         outputs: &[ValueRef],
         sink: &mut S,
     ) -> Result<Vec<EncodedCrtValue<encoding_state::Full>>, GeneratorError> {
-        println!("[GEN] generate() start");
+        // println!("[GEN] generate() start");
         // get encodings from inputs
         let mut state = self.state();
         let inputs = inputs
@@ -249,7 +249,7 @@ impl<const N: usize> BMR16Generator<N> {
             .await
             .unwrap();
         while !gen.is_complete() {
-            println!("[GEN] generating the encrypted gates");
+            // println!("[GEN] generating the encrypted gates");
             // Move the generator to another thread to produce the next batch
             // then send it back
             (gen, batch) = Backend::spawn(move || {
@@ -258,27 +258,27 @@ impl<const N: usize> BMR16Generator<N> {
             })
             .await;
 
-            println!("[GEN] generating finished: {:?}", !batch.is_empty());
-            println!("[GEN] sending the gate");
+            // println!("[GEN] generating finished: {:?}", !batch.is_empty());
+            // println!("[GEN] sending the gate");
             // let result = sink.send(GarbleMessage::ArithEncryptedGates(vec![])).await;
             // println!("[GEN] Result: {:?}", result);
 
             if !batch.is_empty() {
-                println!("[GEN] send the message: ArithEncryptedGates",);
+                // println!("[GEN] send the message: ArithEncryptedGates",);
                 sink.send(GarbleMessage::ArithEncryptedGates(batch))
                     .await
                     .unwrap();
 
-                println!("[GEN] message sent",);
+                // println!("[GEN] message sent",);
             }
-            println!("[GEN] gen.is_complete(): {}", gen.is_complete());
+            // println!("[GEN] gen.is_complete(): {}", gen.is_complete());
         }
 
-        println!("[GEN] gen.outputs()");
+        // println!("[GEN] gen.outputs()");
         let encoded_outputs = gen.outputs()?;
 
         // Add the outputs to the encoding registry and set as active.
-        println!("[GEN] set_encoding()");
+        // println!("[GEN] set_encoding()");
         for (output, encoding) in outputs.iter().zip(encoded_outputs.iter()) {
             state
                 .encoding_registry
@@ -288,7 +288,7 @@ impl<const N: usize> BMR16Generator<N> {
             });
         }
 
-        println!("[GEN] generate() done");
+        // println!("[GEN] generate() done");
         Ok(encoded_outputs)
     }
 
@@ -303,7 +303,7 @@ impl<const N: usize> BMR16Generator<N> {
         values: &[ValueRef],
         sink: &mut S,
     ) -> Result<(), GeneratorError> {
-        println!("[GEN] decode() start");
+        // println!("[GEN] decode() start");
         let state = self.state();
         let decodings = {
             values
@@ -321,7 +321,7 @@ impl<const N: usize> BMR16Generator<N> {
 
         sink.send(GarbleMessage::CrtValueDecodings(decodings))
             .await?;
-        println!("[GEN] decode() done");
+        // println!("[GEN] decode() done");
 
         Ok(())
     }

@@ -186,13 +186,13 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error>> {
     // Load circuit file
-    let raw = fs::read_to_string("./examples/inner_prod.txt")?;
+    let raw = fs::read_to_string("./examples/circ.json")?;
     let raw_circ: RawCircuit = serde_json::from_str(&raw)?;
     // dbg!(circ.clone());
 
     let circ: Arc<ArithmeticCircuit> = Arc::new(raw_circ.try_into()?);
     println!("[MPZ circ] inputs: {:?}", circ.inputs().len());
-    println!("[MPZ circ] outputs: {:?}", circ.outputs());
+    println!("[MPZ circ] outputs: {:#?}", circ.outputs());
 
     let (mut generator_channel, mut evaluator_channel) = MemoryDuplex::<GarbleMessage>::new();
     let (generator_ot_send, evaluator_ot_recv) = mock_ot_shared_pair();
@@ -209,7 +209,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     let evaluator = BMR16Evaluator::<10>::new(ev_config);
 
     let generator_fut = {
-        println!("[GEN]-----------start generator--------------");
+        // println!("[GEN]-----------start generator--------------");
         let a_0 = ValueRef::Value {
             id: ValueId::new("a_0"),
         };
@@ -232,8 +232,6 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
         let out_ref = ValueRef::Value {
             id: ValueId::new("output"),
         };
-
-        println!("out: {:?}", out_ref);
 
         // list input configs
         let input_configs = vec![
@@ -296,12 +294,10 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
                 )
                 .await
                 .unwrap();
-            println!("generator: decode start");
             generator
                 .decode(&[out_ref], &mut generator_channel)
                 .await
                 .unwrap();
-            println!("generator: decode done");
         }
     };
 

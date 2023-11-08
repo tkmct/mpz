@@ -28,6 +28,7 @@ thiserror.workspace = true
 derive_builder.workspace = true
 itybity.workspace = true
 bytemuck.workspace = true
+hex = "0.4"
 
 [dev-dependencies]
 rstest.workspace = true

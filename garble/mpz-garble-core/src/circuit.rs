@@ -56,3 +56,15 @@ impl ArithEncryptedGate {
         self.0.get(i)
     }
 }
+
+impl std::fmt::Display for ArithEncryptedGate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let res = self
+            .0
+            .iter()
+            .map(|b| hex::encode(b.to_bytes()))
+            .collect::<Vec<_>>()
+            .join(",\n\t");
+        write!(f, "{}", res)
+    }
+}
