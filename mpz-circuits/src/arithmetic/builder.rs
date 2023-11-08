@@ -1,5 +1,5 @@
 //! Arithmetic circuit builder module.
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashSet};
 
 use crate::{
     arithmetic::{
@@ -79,7 +79,7 @@ pub struct ArithBuilderState {
     inputs: Vec<CrtRepr>,
     outputs: Vec<CrtRepr>,
     gates: Vec<ArithGate>,
-
+    // constants: Vec<u32>,
     add_count: usize,
     mul_count: usize,
     cmul_count: usize,

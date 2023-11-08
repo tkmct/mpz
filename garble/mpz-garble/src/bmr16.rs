@@ -190,6 +190,7 @@ mod tests {
         };
 
         let (_, evaluator_output) = tokio::join!(generator_fut, evaluator_fut);
+        println!("Decoded evaluator output: {:?}", evaluator_output);
 
         assert_eq!(evaluator_output.unwrap(), vec![ArithValue::U32(340)]);
     }

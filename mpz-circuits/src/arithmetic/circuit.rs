@@ -1,4 +1,5 @@
 //! Arithmetic Circuit module.
+
 use crate::arithmetic::{
     components::ArithGate,
     types::{CrtRepr, TypeError},
@@ -30,7 +31,7 @@ pub struct ArithmeticCircuit {
     pub(crate) outputs: Vec<CrtRepr>,
     pub(crate) gates: Vec<ArithGate>,
     pub(crate) feed_count: usize,
-
+    // pub(crate) constants: Vec<(u32, usize)>,
     pub(crate) add_count: usize,
     pub(crate) cmul_count: usize,
     pub(crate) mul_count: usize,
@@ -57,6 +58,11 @@ impl ArithmeticCircuit {
     pub fn feed_count(&self) -> usize {
         self.feed_count
     }
+
+    /// Returns the slice of constans used in a circuit.
+    // pub fn constans(&self) -> &[u32] {
+    //     &self.constants
+    // }
 
     /// Returns the number of ADD gates in the circuit.
     pub fn add_count(&self) -> usize {
@@ -151,7 +157,6 @@ mod tests {
         let a = builder.add_input::<u32>().unwrap();
         let b = builder.add_input::<u32>().unwrap();
         let out;
-        // FIXME: how to do it more elegantly?
         {
             let mut state = builder.state().borrow_mut();
             let c = mul(&mut state, &a, &b).unwrap();

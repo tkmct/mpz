@@ -1,0 +1,325 @@
+{
+  "gate_count": 6,
+  "var_count": 47,
+  "vars": {
+    "1": {
+      "var_id": 1,
+      "var_name": "3",
+      "is_const": true,
+      "const_value": 3
+    },
+    "2": {
+      "var_id": 2,
+      "var_name": "input_A_0",
+      "is_const": false,
+      "const_value": 0
+    },
+    "3": {
+      "var_id": 3,
+      "var_name": "input_A_1",
+      "is_const": false,
+      "const_value": 0
+    },
+    "4": {
+      "var_id": 4,
+      "var_name": "input_A_2",
+      "is_const": false,
+      "const_value": 0
+    },
+    "5": {
+      "var_id": 5,
+      "var_name": "3",
+      "is_const": true,
+      "const_value": 3
+    },
+    "6": {
+      "var_id": 6,
+      "var_name": "input_B_0",
+      "is_const": false,
+      "const_value": 0
+    },
+    "7": {
+      "var_id": 7,
+      "var_name": "input_B_1",
+      "is_const": false,
+      "const_value": 0
+    },
+    "8": {
+      "var_id": 8,
+      "var_name": "input_B_2",
+      "is_const": false,
+      "const_value": 0
+    },
+    "9": {
+      "var_id": 9,
+      "var_name": "ip",
+      "is_const": false,
+      "const_value": 0
+    },
+    "10": {
+      "var_id": 10,
+      "var_name": "sum",
+      "is_const": false,
+      "const_value": 0
+    },
+    "11": {
+      "var_id": 11,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "12": {
+      "var_id": 12,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "13": {
+      "var_id": 13,
+      "var_name": "i",
+      "is_const": false,
+      "const_value": 0
+    },
+    "14": {
+      "var_id": 14,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "15": {
+      "var_id": 15,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "19": {
+      "var_id": 19,
+      "var_name": "3",
+      "is_const": true,
+      "const_value": 3
+    },
+    "23": {
+      "var_id": 23,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "26": {
+      "var_id": 26,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "27": {
+      "var_id": 27,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "28": {
+      "var_id": 28,
+      "var_name": "auto_var_22",
+      "is_const": false,
+      "const_value": 0
+    },
+    "29": {
+      "var_id": 29,
+      "var_name": "sum",
+      "is_const": false,
+      "const_value": 0
+    },
+    "34": {
+      "var_id": 34,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "35": {
+      "var_id": 35,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "38": {
+      "var_id": 38,
+      "var_name": "0",
+      "is_const": true,
+      "const_value": 0
+    },
+    "39": {
+      "var_id": 39,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "43": {
+      "var_id": 43,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "48": {
+      "var_id": 48,
+      "var_name": "3",
+      "is_const": true,
+      "const_value": 3
+    },
+    "54": {
+      "var_id": 54,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "55": {
+      "var_id": 55,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "56": {
+      "var_id": 56,
+      "var_name": "auto_var_51",
+      "is_const": false,
+      "const_value": 0
+    },
+    "57": {
+      "var_id": 57,
+      "var_name": "sum",
+      "is_const": false,
+      "const_value": 0
+    },
+    "62": {
+      "var_id": 62,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "63": {
+      "var_id": 63,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "66": {
+      "var_id": 66,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "67": {
+      "var_id": 67,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "71": {
+      "var_id": 71,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "76": {
+      "var_id": 76,
+      "var_name": "3",
+      "is_const": true,
+      "const_value": 3
+    },
+    "82": {
+      "var_id": 82,
+      "var_name": "2",
+      "is_const": true,
+      "const_value": 2
+    },
+    "83": {
+      "var_id": 83,
+      "var_name": "2",
+      "is_const": true,
+      "const_value": 2
+    },
+    "84": {
+      "var_id": 84,
+      "var_name": "auto_var_79",
+      "is_const": false,
+      "const_value": 0
+    },
+    "85": {
+      "var_id": 85,
+      "var_name": "sum",
+      "is_const": false,
+      "const_value": 0
+    },
+    "90": {
+      "var_id": 90,
+      "var_name": "2",
+      "is_const": true,
+      "const_value": 2
+    },
+    "91": {
+      "var_id": 91,
+      "var_name": "2",
+      "is_const": true,
+      "const_value": 2
+    },
+    "94": {
+      "var_id": 94,
+      "var_name": "2",
+      "is_const": true,
+      "const_value": 2
+    },
+    "95": {
+      "var_id": 95,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "99": {
+      "var_id": 99,
+      "var_name": "1",
+      "is_const": true,
+      "const_value": 1
+    },
+    "104": {
+      "var_id": 104,
+      "var_name": "3",
+      "is_const": true,
+      "const_value": 3
+    }
+  },
+  "gates": {
+    "1": {
+      "gate_id": 1,
+      "gate_type": "AMul",
+      "input_lhs_id": 2,
+      "input_rhs_id": 6,
+      "output_id": 28
+    },
+    "3": {
+      "gate_id": 3,
+      "gate_type": "AMul",
+      "input_lhs_id": 3,
+      "input_rhs_id": 7,
+      "output_id": 56
+    },
+    "4": {
+      "gate_id": 4,
+      "gate_type": "AAdd",
+      "input_lhs_id": 28,
+      "input_rhs_id": 56,
+      "output_id": 57
+    },
+    "5": {
+      "gate_id": 5,
+      "gate_type": "AMul",
+      "input_lhs_id": 4,
+      "input_rhs_id": 8,
+      "output_id": 84
+    },
+    "6": {
+      "gate_id": 6,
+      "gate_type": "AAdd",
+      "input_lhs_id": 57,
+      "input_rhs_id": 84,
+      "output_id": 85
+    }
+  }
+}

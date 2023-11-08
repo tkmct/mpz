@@ -63,7 +63,7 @@ pub enum EvaluatorError {
 pub struct BMR16EvaluatorConfig {
     /// The number of encrypted gates to evaluate per batch.
     #[builder(default = "1024")]
-    pub(crate) batch_size: usize,
+    pub batch_size: usize,
 }
 
 //// A garbled circuit evaluator.

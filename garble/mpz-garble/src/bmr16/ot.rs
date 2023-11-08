@@ -102,11 +102,12 @@ where
         id: &str,
         choice: Vec<ArithValue>,
     ) -> Result<Vec<EncodedCrtValue<encoding_state::Active>>, mpz_ot::OTError> {
-        let mut lens = Vec::new();
+        let mut crt_lens = Vec::new();
         let mut bs = Vec::new();
 
         println!("deciding bit choices");
         choice.iter().for_each(|value| {
+            let mut lens = Vec::new();
             convert_value_to_crt(*value)
                 .iter()
                 .enumerate()
@@ -120,6 +121,7 @@ where
                     }
                     lens.push(len);
                 });
+            crt_lens.push(lens);
         });
 
         println!("receiving the pairs");
@@ -127,31 +129,32 @@ where
         println!("calculating back to the original value");
 
         // calculate each labels back to original crt label
-        let mut labels = lens
+        let labels_list = crt_lens
             .iter()
-            .enumerate()
-            .map(|(i, &len)| {
-                let q = PRIMES[i];
-                let bits = blocks
-                    .drain(0..len)
-                    .map(|block| LabelModN::from_block(block, q))
-                    .collect::<Vec<_>>();
-                bits.iter()
+            .map(|lens| {
+                lens.iter()
                     .enumerate()
-                    .map(|(j, bit_label)| cmul_label(bit_label, u64::pow(2, j as u32)))
-                    .reduce(|acc, l| add_label(&acc, &l))
-                    .unwrap()
+                    .map(|(i, &len)| {
+                        let q = PRIMES[i];
+                        let bits = blocks
+                            .drain(0..len)
+                            .map(|block| LabelModN::from_block(block, q))
+                            .collect::<Vec<_>>();
+                        bits.iter()
+                            .enumerate()
+                            .map(|(j, bit_label)| cmul_label(bit_label, u64::pow(2, j as u32)))
+                            .reduce(|acc, l| add_label(&acc, &l))
+                            .unwrap()
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
 
-        let result = choice
+        let result = labels_list
             .iter()
-            .map(|v| {
-                EncodedCrtValue::<encoding_state::Active>::from(
-                    labels.drain(..v.num_wire()).collect::<Vec<_>>(),
-                )
-            })
+            .map(|labels| EncodedCrtValue::<encoding_state::Active>::from(labels.clone()))
             .collect::<Vec<_>>();
+
         Ok(result)
     }
 }

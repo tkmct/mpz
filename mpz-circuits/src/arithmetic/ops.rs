@@ -43,6 +43,23 @@ pub fn add(
     Ok(repr)
 }
 
+/// Add constant value to crt value.
+pub fn cadd(state: &mut ArithBuilderState, x: &CrtRepr, c: u32) -> CrtRepr {
+    todo!()
+    // ret
+    // match x {
+    //     CrtRepr::Bool(xval) => {
+    //         let z = state.add_add_gate(&xval.nodes()[0], c);
+    //         CrtRepr::Bool(CrtValue::<1>::new([z]))
+    //     }
+    //     CrtRepr::U32(xval) => {
+    //         let zval: [ArithNode<Feed>; 10] =
+    //             std::array::from_fn(|i| state.add_cadd_gate(&xval.nodes()[i], c));
+    //         CrtRepr::U32(CrtValue::<10>::new(zval))
+    //     }
+    // }
+}
+
 /// Multiply two crt values.
 /// Multiply gates for each ArithNode and returns new CrtRepr
 pub fn mul(
