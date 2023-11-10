@@ -39,6 +39,31 @@ pub struct ArithmeticCircuit {
 }
 
 impl ArithmeticCircuit {
+    ///
+    pub fn print_gates(&self) {
+        let inputs = self
+            .inputs()
+            .iter()
+            .map(|inp| format!("\tInput{:?} \n", inp))
+            .collect::<Vec<_>>()
+            .concat();
+
+        let res = self
+            .gates
+            .iter()
+            .map(|gate| match gate {
+                ArithGate::Add { x, y, z } => format!("\tADD({},{},{})\n", x.id(), y.id(), z.id()),
+                ArithGate::Mul { x, y, z } => format!("\tMUL({},{},{})\n", x.id(), y.id(), z.id()),
+                ArithGate::Cmul { x, c, z } => {
+                    format!("\tCMUL({},const{},{})\n", x.id(), c, z.id())
+                }
+                ArithGate::Proj { x, z, .. } => format!("\tPROJ({},TT,{})\n", x.id(), z.id()),
+            })
+            .collect::<Vec<_>>()
+            .concat();
+        println!("ArithmeticCircuit \n{}\n{}", inputs, res);
+    }
+
     /// Returns a reference to the inputs of the circuit.
     pub fn inputs(&self) -> &[CrtRepr] {
         &self.inputs

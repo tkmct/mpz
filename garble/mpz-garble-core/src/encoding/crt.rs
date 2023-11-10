@@ -238,7 +238,7 @@ impl<T: LabelState> std::fmt::Display for Labels<T> {
         let res = self
             .labels
             .iter()
-            .map(|label| format!("\n{}\n", label))
+            .map(|label| format!("\n{}", label))
             .collect::<Vec<_>>()
             .concat();
         write!(f, "{}", res)

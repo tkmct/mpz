@@ -151,6 +151,8 @@ mod tests {
         let z = mul(&mut builder.state().borrow_mut(), &x, &y).unwrap();
 
         let circ = builder.build().unwrap();
+        circ.print_gates();
+        // dbg!(circ.clone());
 
         // check z has correct CrtRepr
         //
