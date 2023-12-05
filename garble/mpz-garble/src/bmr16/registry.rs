@@ -2,11 +2,13 @@
 use std::collections::HashMap;
 
 use mpz_circuits::arithmetic::types::CrtValueType;
-use mpz_core::value::{ValueId, ValueRef};
 use mpz_garble_core::encoding::{crt_encoding_state::LabelState as CrtLabelState, EncodedCrtValue};
 
-use crate::registry::{EncodingId, EncodingRegistryError};
-use crate::MemoryError;
+use crate::{
+    memory::EncodingId,
+    value::{ValueId, ValueRef},
+    MemoryError,
+};
 
 /// A registry of values.
 ///
@@ -91,10 +93,10 @@ where
         &mut self,
         id: &ValueId,
         encoding: EncodedCrtValue<T>,
-    ) -> Result<(), EncodingRegistryError> {
+    ) -> Result<(), MemoryError> {
         let encoding_id = EncodingId::new(id.to_u64());
         if self.encodings.contains_key(&encoding_id) {
-            return Err(EncodingRegistryError::DuplicateId(id.clone()));
+            return Err(MemoryError::DuplicateValueId(id.clone()));
         }
 
         self.encodings.insert(encoding_id, encoding);
@@ -112,7 +114,7 @@ where
         &mut self,
         value: &ValueRef,
         encoding: EncodedCrtValue<T>,
-    ) -> Result<(), EncodingRegistryError> {
+    ) -> Result<(), MemoryError> {
         match (value, encoding) {
             (ValueRef::Value { id }, encoding) => self.set_encoding_by_id(id, encoding)?,
             (ValueRef::Array(..), _) => panic!("not supported"),

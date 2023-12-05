@@ -16,10 +16,7 @@ use mpz_circuits::{
     },
     ArithmeticCircuit,
 };
-use mpz_core::{
-    aes::{FixedKeyAes, FIXED_KEY_AES},
-    value::{ValueId, ValueRef},
-};
+use mpz_core::aes::{FixedKeyAes, FIXED_KEY_AES};
 use mpz_garble_core::{
     bmr16::generator::{BMR16Generator as GeneratorCore, GeneratorError as BMR16GeneratorError},
     encoding::{crt_encoding_state as encoding_state, ChaChaCrtEncoder, EncodedCrtValue},
@@ -27,8 +24,9 @@ use mpz_garble_core::{
     ValueError,
 };
 
-use crate::bmr16::{
-    config::ArithValueIdConfig, ot::OTSendCrtEncoding, registry::CrtEncodingRegistry,
+use crate::{
+    bmr16::{config::ArithValueIdConfig, ot::OTSendCrtEncoding, registry::CrtEncodingRegistry},
+    value::{ValueId, ValueRef},
 };
 
 /// Errors that can occur while performing the role of a generator
@@ -47,7 +45,7 @@ pub enum GeneratorError {
     #[error("missing encoding for value")]
     MissingEncoding(ValueRef),
     #[error(transparent)]
-    EncodingRegistryError(#[from] crate::registry::EncodingRegistryError),
+    MemoryError(#[from] crate::MemoryError),
 }
 
 impl From<mpz_ot::OTError> for GeneratorError {

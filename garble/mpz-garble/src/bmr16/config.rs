@@ -1,6 +1,7 @@
 //! BMR16 configs
 use mpz_circuits::arithmetic::types::{ArithValue, CrtValueType};
-use mpz_core::value::{ValueId, ValueRef};
+
+use crate::value::{ValueId, ValueRef};
 
 /// configuration of a value
 #[derive(Debug, Clone)]

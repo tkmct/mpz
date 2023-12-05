@@ -11,10 +11,7 @@ use std::{
 };
 
 use mpz_circuits::arithmetic::types::{ArithValue, CrtValueType, TypeError};
-use mpz_core::{
-    hash::Hash,
-    value::{ValueId, ValueRef},
-};
+use mpz_core::hash::Hash;
 use mpz_garble_core::{
     bmr16::evaluator::{BMR16Evaluator as EvaluatorCore, EvaluatorError as BMR16EvaluatorError},
     encoding::{
@@ -32,6 +29,7 @@ use utils_aio::{
 use crate::{
     bmr16::{config::ArithValueIdConfig, ot::OTReceiveCrtEncoding, registry::CrtEncodingRegistry},
     ot::OTVerifyEncoding,
+    value::{ValueId, ValueRef},
 };
 
 /// Errors that can occur while performing the role of an evaluator
@@ -52,7 +50,7 @@ pub enum EvaluatorError {
     #[error(transparent)]
     ValueError(#[from] mpz_garble_core::ValueError),
     #[error(transparent)]
-    EncodingRegistryError(#[from] crate::registry::EncodingRegistryError),
+    EncodingRegistryError(#[from] crate::MemoryError),
     #[error("missing active encoding for value")]
     MissingEncoding(ValueRef),
     #[error("duplicate decoding for value: {0:?}")]

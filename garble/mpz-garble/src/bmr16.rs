@@ -10,8 +10,8 @@ pub mod registry;
 mod tests {
     use std::sync::Arc;
 
+    use crate::value::{ValueId, ValueRef};
     use futures::SinkExt;
-    use mpz_core::value::{ValueId, ValueRef};
     use utils_aio::duplex::MemoryDuplex;
 
     use mpz_circuits::{

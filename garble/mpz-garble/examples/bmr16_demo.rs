@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use futures::SinkExt;
-use mpz_core::value::{ValueId, ValueRef};
 use utils_aio::duplex::MemoryDuplex;
 
 use mpz_circuits::{
@@ -14,10 +13,13 @@ use mpz_circuits::{
 use mpz_garble_core::msg::GarbleMessage;
 use mpz_ot::mock::mock_ot_shared_pair;
 
-use mpz_garble::bmr16::{
-    config::ArithValueIdConfig,
-    evaluator::{BMR16Evaluator, BMR16EvaluatorConfig},
-    generator::{BMR16Generator, BMR16GeneratorConfig},
+use mpz_garble::{
+    bmr16::{
+        config::ArithValueIdConfig,
+        evaluator::{BMR16Evaluator, BMR16EvaluatorConfig},
+        generator::{BMR16Generator, BMR16GeneratorConfig},
+    },
+    value::{ValueId, ValueRef},
 };
 
 use serde::{Deserialize, Serialize};
