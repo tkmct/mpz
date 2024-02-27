@@ -190,17 +190,40 @@ pub fn mixed_radix_add_msb<const N: usize>(
 /// Fractional mixed radix
 pub fn crt_fractional_mixed_radix(
     state: &mut ArithBuilderState,
-    x: &CrtRepr,
+    crt: &CrtRepr,
     ms: &[u16],
 ) -> Result<ArithNode<Feed>, ArithCircuitError> {
     let ndigits = ms.len();
 
-    let q = x.moduli().iter().fold(1, |acc, &x| acc * x as u128);
+    let q = crt.moduli().iter().fold(1, |acc, &x| acc * x as u128);
     let M = ms.iter().fold(1, |acc, &x| acc * x as u128);
 
     let mut ds = Vec::new();
 
-    todo!()
+    for wire in crt.iter() {
+        let p = wire.modulus();
+
+        let mut tabs = vec![Vec::with_capacity(p as usize); ndigits];
+
+        for x in 0..p {
+            let crt_coef = util::inv(((q / p as u128) % p as u128) as i128, p as i128);
+            let y = (M as f64 * x as f64 * crt_coef as f64 / p as f64).round() as u128 % M;
+            let digits = util::as_mixed_radix(y, ms);
+            for i in 0..ndigits {
+                tabs[i].push(digits[i]);
+            }
+        }
+
+        let new_ds = tabs
+            .into_iter()
+            .enumerate()
+            .map(|(i, tt)| state.add_proj_gate(wire, ms[i], tt))
+            .collect::<Result<Vec<ArithNode<Feed>>, ArithCircuitError>>()?;
+
+        ds.push(MixedRadixValue::from(new_ds));
+    }
+
+    mixed_radix_add_msb(state, &ds)
 }
 
 // pub fn crt_sign(state: &mut ArithBuilderState, x: &CrtRepr, accuracy: &str) -> Crt
