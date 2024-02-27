@@ -67,7 +67,7 @@ pub struct BMR16EvaluatorConfig {
     pub batch_size: usize,
 }
 
-//// A garbled circuit evaluator.
+/// A garbled circuit evaluator.
 #[allow(missing_docs)]
 pub struct BMR16Evaluator<const N: usize> {
     config: BMR16EvaluatorConfig,

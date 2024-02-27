@@ -18,6 +18,8 @@ pub enum ArithCircuitError {
     InvalidOutputCount(usize, usize),
     #[error("Moduli does not match: got {0} and {1}")]
     UnequalModuli(u16, u16),
+    #[error("Invalid number of length: got {0}")]
+    InvalidLength(usize),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -204,7 +206,11 @@ mod tests {
         let tt: Vec<u16> = vec![1, 2];
         let node = x.iter().next().unwrap();
 
-        let out_node = builder.state().borrow_mut().add_proj_gate(node, tt);
+        let out_node = builder
+            .state()
+            .borrow_mut()
+            .add_proj_gate(node, node.modulus(), tt)
+            .unwrap();
         let out_rep = bool::new_crt_repr(&[out_node]).unwrap();
         builder.add_output(&out_rep);
 

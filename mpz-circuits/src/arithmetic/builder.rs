@@ -56,9 +56,14 @@ impl ArithmeticCircuitBuilder {
     /// Add proj gate
     // TODO: maybe we don't need builder state. just put everything under builder
     // TODO: should return Result?
-    pub fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<u16>) -> ArithNode<Feed> {
+    pub fn add_proj_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        q: u16,
+        tt: Vec<u16>,
+    ) -> Result<ArithNode<Feed>, ArithCircuitError> {
         let mut state = self.state.borrow_mut();
-        state.add_proj_gate(x, tt)
+        state.add_proj_gate(x, q, tt)
     }
 
     /// Add add gate wrapper
@@ -159,10 +164,17 @@ impl ArithBuilderState {
     }
 
     /// Add PROJ gate to a circuit
-    pub(crate) fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<u16>) -> ArithNode<Feed> {
+    pub(crate) fn add_proj_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        q: u16,
+        tt: Vec<u16>,
+    ) -> Result<ArithNode<Feed>, ArithCircuitError> {
         // check if the number of tt rows are equal to x's modulus
 
-        let out = self.add_feed(x.modulus());
+        // let out = self.add_feed(x.modulus());
+        let out = self.add_feed(q);
+
         let gate = ArithGate::Proj {
             x: x.into(),
             tt,
@@ -170,7 +182,8 @@ impl ArithBuilderState {
         };
         self.proj_count += 1;
         self.gates.push(gate);
-        out
+
+        Ok(out)
     }
 
     /// Builds a circuit.
