@@ -214,4 +214,39 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_conversion() {
+        let builder = ArithmeticCircuitBuilder::default();
+        let x = builder.add_input::<u32>().unwrap();
+        let c = 5;
+
+        let z = cmul(&mut builder.state().borrow_mut(), &x, c);
+
+        let circ = builder.build().unwrap();
+
+        // check z has correct CrtRepr
+        assert_eq!(
+            z,
+            CrtRepr::U32(CrtValue::new(std::array::from_fn(|i| {
+                ArithNode::<Feed>::new(10 + i, PRIMES[i])
+            })))
+        );
+
+        assert_eq!(circ.feed_count(), 20);
+        assert_eq!(circ.cmul_count(), 10);
+
+        // check if appropriate gates are added to state.
+        let gates = circ.gates();
+        for (i, (gate, p)) in gates.iter().zip(PRIMES).enumerate() {
+            assert_eq!(
+                *gate,
+                ArithGate::Cmul {
+                    x: ArithNode::<Sink>::new(i, p),
+                    c,
+                    z: ArithNode::<Feed>::new(i + 10, p),
+                }
+            );
+        }
+    }
 }

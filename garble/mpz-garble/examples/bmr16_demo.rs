@@ -42,28 +42,32 @@ pub enum AGateType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ArithmeticVar {
-    pub var_id: u32,
-    pub var_name: String,
-    pub is_const: bool,
-    pub const_value: u32,
+pub struct ArithmeticGate {
+    id: u32,
+    gate_type: AGateType,
+    lh_input: u32,
+    rh_input: u32,
+    output: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ArithmeticNode {
-    pub gate_id: u32,
-    pub gate_type: AGateType,
-    pub input_lhs_id: u32,
-    pub input_rhs_id: u32,
-    pub output_id: u32,
+pub struct Node {
+    id: u32,
+    signals: Vec<u32>,
+    names: Vec<String>,
+    is_const: bool,
+    const_value: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RawCircuit {
     pub gate_count: u32,
     pub var_count: u32,
-    pub vars: HashMap<u32, ArithmeticVar>,
-    pub gates: HashMap<u32, ArithmeticNode>,
+    pub vars: HashMap<u32, Node>,
+    pub gates: HashMap<u32, ArithmeticGate>,
+    pub input_A_vars: Vec<u32>,
+    pub input_B_vars: Vec<u32>,
+    pub outputs: Vec<u32>
 }
 
 enum Wire {
@@ -81,6 +85,12 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
         let mut used_vars = HashMap::<u32, CrtRepr>::new();
         // TODO: load output from config file?
         // for now, use output of last gate as an output of a circuit.
+
+        // controlling inputs/outputs here
+        let input_A_names = vec!["0.input_A"];
+        let input_B_names = vec!["0.input_B"];
+        let output_names = vec!["0.ip"];
+
         let mut output = None;
         let mut o = 0;
 
@@ -89,19 +99,56 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
 
         for id in keys.iter() {
             let gate = self.gates.get(id).expect("gate should be set");
-            let lhs_var = self.vars.get(&gate.input_lhs_id).unwrap();
-            let rhs_var = self.vars.get(&gate.input_rhs_id).unwrap();
+            let lhs_var = self.vars.get(&gate.lh_input).unwrap();
+            let rhs_var = self.vars.get(&gate.rh_input).unwrap();
+
+            // putting into vec
+            for name_v in lhs_var.names {
+                for name_a in input_A_names {
+                    if name_v.contains(name_a) {
+                        self.input_A_vars.insert(self.input_A_vars.len(), lhs_var.id);
+                    }
+                }
+                for name_b in input_B_names {
+                    if name_v.contains(name_b) {
+                        self.input_B_vars.insert(self.input_B_vars.len(), lhs_var.id);
+                    }
+                }
+                for name_o in output_names {
+                    if name_v.contains(name_o) {
+                        self.outputs.insert(self.outputs.len(), lhs_var.id);
+                    }
+                }
+            }
+
+            for name_v in rhs_var.names {
+                for name_a in input_A_names {
+                    if name_v.contains(name_a) {
+                        self.input_A_vars.insert(self.input_A_vars.len(), rhs_var.id);
+                    }
+                }
+                for name_b in input_B_names {
+                    if name_v.contains(name_b) {
+                        self.input_B_vars.insert(self.input_B_vars.len(), rhs_var.id);
+                    }
+                }
+                for name_o in output_names {
+                    if name_v.contains(name_o) {
+                        self.outputs.insert(self.outputs.len(), rhs_var.id);
+                    }
+                }
+            }
 
             let lhs = if lhs_var.is_const {
                 Wire::Const(lhs_var.const_value)
             } else {
-                Wire::Var(if let Some(crt) = used_vars.get(&gate.input_lhs_id) {
+                Wire::Var(if let Some(crt) = used_vars.get(&gate.lh_input) {
                     crt.clone()
                 } else {
                     // check if const or not
-                    println!("Input added: {:?}", gate.input_lhs_id);
+                    println!("Input added: {:?}", gate.lh_input);
                     let v = builder.add_input::<u32>().unwrap();
-                    used_vars.insert(gate.input_lhs_id, v.clone());
+                    used_vars.insert(gate.lh_input, v.clone());
                     v
                 })
             };
@@ -109,13 +156,13 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
             let rhs = if rhs_var.is_const {
                 Wire::Const(rhs_var.const_value)
             } else {
-                Wire::Var(if let Some(crt) = used_vars.get(&gate.input_rhs_id) {
+                Wire::Var(if let Some(crt) = used_vars.get(&gate.rh_input) {
                     crt.clone()
                 } else {
                     // check if const or not
                     let v = builder.add_input::<u32>().unwrap();
-                    println!("Input added: {:?}", gate.input_rhs_id);
-                    used_vars.insert(gate.input_rhs_id, v.clone());
+                    println!("Input added: {:?}", gate.rh_input);
+                    used_vars.insert(gate.rh_input, v.clone());
                     v
                 })
             };
@@ -127,18 +174,18 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
                             // add cmul gate.
                             let mut state = builder.state().borrow_mut();
                             let out = cmul(&mut state, &v, c);
-                            used_vars.insert(gate.output_id, out.clone());
+                            used_vars.insert(gate.output, out.clone());
 
-                            o = gate.output_id;
+                            o = gate.output;
                             output = Some(out);
                         }
                         AGateType::AAdd => {
                             // add cmul gate.
                             let mut state = builder.state().borrow_mut();
                             let out = cmul(&mut state, &v, c);
-                            used_vars.insert(gate.output_id, out.clone());
+                            used_vars.insert(gate.output, out.clone());
 
-                            o = gate.output_id;
+                            o = gate.output;
                             output = Some(out);
                         }
 
@@ -153,18 +200,18 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
                             // if not, create new feed and put in the map
                             let mut state = builder.state().borrow_mut();
                             let out = add(&mut state, &lhs, &rhs).unwrap();
-                            used_vars.insert(gate.output_id, out.clone());
+                            used_vars.insert(gate.output, out.clone());
 
-                            o = gate.output_id;
+                            o = gate.output;
                             output = Some(out);
                         }
                         AGateType::AMul => {
                             // add mul gate or cmul gate
                             let mut state = builder.state().borrow_mut();
                             let out = mul(&mut state, &lhs, &rhs).unwrap();
-                            used_vars.insert(gate.output_id, out.clone());
+                            used_vars.insert(gate.output, out.clone());
 
-                            o = gate.output_id;
+                            o = gate.output;
                             output = Some(out);
                         }
                         _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
