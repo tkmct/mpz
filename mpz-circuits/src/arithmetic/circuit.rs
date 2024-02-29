@@ -20,6 +20,8 @@ pub enum ArithCircuitError {
     UnequalModuli(u16, u16),
     #[error("Invalid number of length: got {0}")]
     InvalidLength(usize),
+    #[error("Invalid moduli length: got {0} cannot be handled")]
+    InvalidModuliLen(usize),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),

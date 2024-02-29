@@ -5,10 +5,11 @@ use crate::arithmetic::{
     builder::ArithBuilderState,
     circuit::ArithCircuitError,
     types::{ArithNode, CrtRepr, TypeError},
-    utils::is_same_crt_len,
+    utils::{as_mixed_radix, inv, is_same_crt_len},
 };
 
 use super::types::{CrtValue, MixedRadixValue};
+use super::utils::PRIMES;
 
 /// Add two crt values.
 /// Add gates for each ArithNode and returns new CrtRepr
@@ -123,9 +124,9 @@ pub fn mod_change(
 
 /// Mixed radix addition returning MSB.
 /// This method is used by crt_fractional_mixed_radix
-pub fn mixed_radix_add_msb<const N: usize>(
+pub fn mixed_radix_add_msb(
     state: &mut ArithBuilderState,
-    xs: &[MixedRadixValue<N>],
+    xs: &[MixedRadixValue],
 ) -> Result<ArithNode<Feed>, ArithCircuitError> {
     // check moduli of all mixed radix value
     let len = xs.len();
@@ -206,9 +207,9 @@ pub fn crt_fractional_mixed_radix(
         let mut tabs = vec![Vec::with_capacity(p as usize); ndigits];
 
         for x in 0..p {
-            let crt_coef = util::inv(((q / p as u128) % p as u128) as i128, p as i128);
+            let crt_coef = inv(((q / p as u128) % p as u128) as i128, p as i128);
             let y = (M as f64 * x as f64 * crt_coef as f64 / p as f64).round() as u128 % M;
-            let digits = util::as_mixed_radix(y, ms);
+            let digits = as_mixed_radix(y, ms);
             for i in 0..ndigits {
                 tabs[i].push(digits[i]);
             }
@@ -220,29 +221,113 @@ pub fn crt_fractional_mixed_radix(
             .map(|(i, tt)| state.add_proj_gate(wire, ms[i], tt))
             .collect::<Result<Vec<ArithNode<Feed>>, ArithCircuitError>>()?;
 
-        ds.push(MixedRadixValue::from(new_ds));
+        ds.push(MixedRadixValue::new(new_ds));
     }
 
     mixed_radix_add_msb(state, &ds)
 }
 
-// pub fn crt_sign(state: &mut ArithBuilderState, x: &CrtRepr, accuracy: &str) -> Crt
-//
-// ///
-// /// Return 0 if x is positive and 1 if x is negative
-// pub fn crt_sgn(state: &mut ArithBuilderState, x: &CrtRepr, accuracy: &str) -> CrtRepr {
-//     let sign = crt_sign(x, accuracy);
-//     todo!()
-// }
-//
-//
-// /// Compare two crt representation wires.
-// /// Returns 1 if x < y.
-// pub fn crt_lt(state: &mut ArithBuilderState, x: &CrtRepr, y: &CrtRepr) -> CrtRepr {
-//     let z = self.crt_sub(x,y)?;
-//     self.crt_sign(&z, accuracy)
-//     todo!()
-// }
+/// Returns 0 if x is positive, 1 if x is negative
+/// Returning ArithNode has mod 2
+pub fn crt_sign(
+    state: &mut ArithBuilderState,
+    x: &CrtRepr,
+    accuracy: &str,
+) -> Result<ArithNode<Feed>, ArithCircuitError> {
+    let factors_of_m = &get_ms(x.moduli().len(), accuracy);
+    let res = crt_fractional_mixed_radix(state, x, factors_of_m)?;
+    let p = *factors_of_m.last().unwrap();
+    let tt = (0..p).map(|x| (x >= p / 2) as u16).collect::<Vec<_>>();
+    state.add_proj_gate(&res, 2, tt)
+}
+
+/// Return 1 if x is positive and -1 if x is negative. -1 is represented as P-1.
+/// N is a number of moduli (=wires) used to represent resulting value
+pub fn crt_sgn<const N: usize>(
+    state: &mut ArithBuilderState,
+    x: &CrtRepr,
+    accuracy: &str,
+) -> Result<CrtRepr, ArithCircuitError> {
+    let sign = crt_sign(state, x, accuracy)?;
+    match N {
+        1 => {
+            let v: [ArithNode<Feed>; 1] = std::array::from_fn(|i| {
+                let p = PRIMES[i];
+                let tt = vec![1, p - 1];
+                state.add_proj_gate(&sign, p, tt).unwrap()
+            });
+
+            Ok(CrtRepr::Bool(CrtValue::new(v)))
+        }
+        10 => {
+            let v: [ArithNode<Feed>; 10] = std::array::from_fn(|i| {
+                let p = PRIMES[i];
+                let tt = vec![1, p - 1];
+                state.add_proj_gate(&sign, p, tt).unwrap()
+            });
+
+            Ok(CrtRepr::U32(CrtValue::new(v)))
+        }
+        _ => Err(ArithCircuitError::InvalidModuliLen(N)),
+    }
+}
+
+/// Compute the `ms` needed for the number of CRT primes in `x`, with accuracy
+/// `accuracy`.
+///
+/// Supported accuracy: ["100%", "99.9%", "99%"]
+fn get_ms(len: usize, accuracy: &str) -> Vec<u16> {
+    match accuracy {
+        "100%" => match len {
+            3 => vec![2; 5],
+            4 => vec![3, 26],
+            5 => vec![3, 4, 54],
+            6 => vec![5, 5, 5, 60],
+            7 => vec![5, 6, 6, 7, 86],
+            8 => vec![5, 7, 8, 8, 9, 98],
+            9 => vec![5, 5, 7, 7, 7, 7, 7, 76],
+            10 => vec![5, 5, 6, 6, 6, 6, 11, 11, 202],
+            11 => vec![5, 5, 5, 5, 5, 6, 6, 6, 7, 7, 8, 150],
+            n => panic!("unknown exact Ms for {} primes!", n),
+        },
+        "99.999%" => match len {
+            8 => vec![5, 5, 6, 7, 102],
+            9 => vec![5, 5, 6, 7, 114],
+            10 => vec![5, 6, 6, 7, 102],
+            11 => vec![5, 5, 6, 7, 130],
+            n => panic!("unknown 99.999% accurate Ms for {} primes!", n),
+        },
+        "99.99%" => match len {
+            6 => vec![5, 5, 5, 42],
+            7 => vec![4, 5, 6, 88],
+            8 => vec![4, 5, 7, 78],
+            9 => vec![5, 5, 6, 84],
+            10 => vec![4, 5, 6, 112],
+            11 => vec![7, 11, 174],
+            n => panic!("unknown 99.99% accurate Ms for {} primes!", n),
+        },
+        "99.9%" => match len {
+            5 => vec![3, 5, 30],
+            6 => vec![4, 5, 48],
+            7 => vec![4, 5, 60],
+            8 => vec![3, 5, 78],
+            9 => vec![9, 140],
+            10 => vec![7, 190],
+            n => panic!("unknown 99.9% accurate Ms for {} primes!", n),
+        },
+        "99%" => match len {
+            4 => vec![3, 18],
+            5 => vec![3, 36],
+            6 => vec![3, 40],
+            7 => vec![3, 40],
+            8 => vec![126],
+            9 => vec![138],
+            10 => vec![140],
+            n => panic!("unknown 99% accurate Ms for {} primes!", n),
+        },
+        _ => panic!("get_ms: unsupported accuracy {}", accuracy),
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -303,7 +388,6 @@ mod tests {
 
         let circ = builder.build().unwrap();
         circ.print_gates();
-        // dbg!(circ.clone());
 
         // check z has correct CrtRepr
         //
@@ -373,4 +457,20 @@ mod tests {
     #[test]
     #[ignore]
     fn test_mod_change() {}
+
+    #[test]
+    #[ignore]
+    fn test_mixed_radix_msb() {}
+
+    #[test]
+    #[ignore]
+    fn test_fractional_mixed_radix() {}
+
+    #[test]
+    #[ignore]
+    fn test_sgn() {}
+
+    #[test]
+    #[ignore]
+    fn test_sign() {}
 }

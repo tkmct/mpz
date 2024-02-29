@@ -16,8 +16,6 @@ use mpz_circuits::arithmetic::{
 
 use crate::encoding::{utils::unrank, Block};
 
-use hex::encode;
-
 const DELTA_STREAM_ID: u64 = u64::MAX;
 
 #[derive(Debug, thiserror::Error)]

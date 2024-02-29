@@ -266,18 +266,22 @@ impl ArithValue {
 }
 
 /// Mixed radix value
-pub struct MixedRadixValue<const N: usize>([ArithNode<Feed>; N]);
+pub struct MixedRadixValue(Vec<ArithNode<Feed>>);
 
-impl<const N: usize> MixedRadixValue<N> {
+impl MixedRadixValue {
+    pub(crate) fn new(inner: Vec<ArithNode<Feed>>) -> Self {
+        Self(inner)
+    }
+
     /// Returns the length of moduli array
     pub(crate) fn len(&self) -> usize {
-        N
+        self.0.len()
     }
 
     /// Returns the moduli array
-    pub(crate) fn moduli(&self) -> &[u16; N] {
+    pub(crate) fn moduli(&self) -> &[u16] {
         // Unwrapping is safe because N is always less than NPRIMES.
-        TryFrom::try_from(&PRIMES[..N]).unwrap()
+        TryFrom::try_from(&PRIMES[..self.len()]).unwrap()
     }
 
     pub(crate) fn wires(&self) -> &[ArithNode<Feed>] {
