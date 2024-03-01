@@ -67,7 +67,7 @@ pub struct RawCircuit {
     pub gates: HashMap<u32, ArithmeticGate>,
     pub input_A_vars: Vec<u32>,
     pub input_B_vars: Vec<u32>,
-    pub outputs: Vec<u32>
+    pub outputs: Vec<u32>,
 }
 
 enum Wire {
@@ -79,6 +79,7 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
     type Error = BuilderError;
 
     fn try_into(self) -> Result<ArithmeticCircuit, BuilderError> {
+        let mut circ = self.clone();
         let builder = ArithmeticCircuitBuilder::new();
         // take each gate and append in the builder
         // mark input wire
@@ -94,47 +95,51 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
         let mut output = None;
         let mut o = 0;
 
-        let mut keys = self.gates.keys().collect::<Vec<_>>();
+        let mut keys = circ.gates.keys().collect::<Vec<_>>();
         keys.sort();
 
         for id in keys.iter() {
-            let gate = self.gates.get(id).expect("gate should be set");
-            let lhs_var = self.vars.get(&gate.lh_input).unwrap();
-            let rhs_var = self.vars.get(&gate.rh_input).unwrap();
+            let gate = circ.gates.get(id).expect("gate should be set");
+            let lhs_var = circ.vars.get(&gate.lh_input).unwrap();
+            let rhs_var = circ.vars.get(&gate.rh_input).unwrap();
 
             // putting into vec
-            for name_v in lhs_var.names {
-                for name_a in input_A_names {
+            for name_v in lhs_var.names.iter() {
+                for name_a in input_A_names.as_slice() {
                     if name_v.contains(name_a) {
-                        self.input_A_vars.insert(self.input_A_vars.len(), lhs_var.id);
+                        circ.input_A_vars
+                            .insert(self.input_A_vars.len(), lhs_var.id);
                     }
                 }
-                for name_b in input_B_names {
+                for name_b in input_B_names.as_slice() {
                     if name_v.contains(name_b) {
-                        self.input_B_vars.insert(self.input_B_vars.len(), lhs_var.id);
+                        circ.input_B_vars
+                            .insert(self.input_B_vars.len(), lhs_var.id);
                     }
                 }
-                for name_o in output_names {
+                for name_o in output_names.as_slice() {
                     if name_v.contains(name_o) {
-                        self.outputs.insert(self.outputs.len(), lhs_var.id);
+                        circ.outputs.insert(self.outputs.len(), lhs_var.id);
                     }
                 }
             }
 
-            for name_v in rhs_var.names {
-                for name_a in input_A_names {
+            for name_v in rhs_var.names.as_slice() {
+                for name_a in input_A_names.iter() {
                     if name_v.contains(name_a) {
-                        self.input_A_vars.insert(self.input_A_vars.len(), rhs_var.id);
+                        circ.input_A_vars
+                            .insert(self.input_A_vars.len(), rhs_var.id);
                     }
                 }
-                for name_b in input_B_names {
+                for name_b in input_B_names.as_slice() {
                     if name_v.contains(name_b) {
-                        self.input_B_vars.insert(self.input_B_vars.len(), rhs_var.id);
+                        circ.input_B_vars
+                            .insert(self.input_B_vars.len(), rhs_var.id);
                     }
                 }
-                for name_o in output_names {
+                for name_o in output_names.as_slice() {
                     if name_v.contains(name_o) {
-                        self.outputs.insert(self.outputs.len(), rhs_var.id);
+                        circ.outputs.insert(self.outputs.len(), rhs_var.id);
                     }
                 }
             }
