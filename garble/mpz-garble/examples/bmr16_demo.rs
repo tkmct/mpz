@@ -59,15 +59,39 @@ pub struct Node {
     const_value: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+/// Represents an arithmetic circuit, with a set of variables and gates.
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct RawCircuit {
-    pub gate_count: u32,
-    pub var_count: u32,
-    pub vars: HashMap<u32, Node>,
-    pub gates: HashMap<u32, ArithmeticGate>,
+    vars: HashMap<u32, Option<u32>>,
+    nodes: Vec<Node>,
+    gates: Vec<ArithmeticGate>,
+}
+
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// pub struct RawCircuit {
+//     pub gate_count: u32,
+//     pub var_count: u32,
+//     pub vars: HashMap<u32, Node>,
+//     pub gates: HashMap<u32, ArithmeticGate>,
+//     pub input_A_vars: Vec<u32>,
+//     pub input_B_vars: Vec<u32>,
+//     pub outputs: Vec<u32>,
+// }
+
+pub struct CircuitConfig {
     pub input_A_vars: Vec<u32>,
     pub input_B_vars: Vec<u32>,
     pub outputs: Vec<u32>,
+}
+
+impl CircuitConfig {
+    pub fn new() -> Self {
+        Self {
+            input_A_vars: vec![],
+            input_B_vars: vec![],
+            outputs: vec![]
+        }
+    }
 }
 
 enum Wire {
@@ -78,8 +102,9 @@ enum Wire {
 impl TryInto<ArithmeticCircuit> for RawCircuit {
     type Error = BuilderError;
 
-    fn try_into(self) -> Result<ArithmeticCircuit, BuilderError> {
+    fn try_into(self) -> Result<(ArithmeticCircuit, CircuitConfig), BuilderError> {
         let mut circ = self.clone();
+        let config = CircuitConfig::new();
         let builder = ArithmeticCircuitBuilder::new();
         // take each gate and append in the builder
         // mark input wire
@@ -88,7 +113,9 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
         // for now, use output of last gate as an output of a circuit.
 
         // controlling inputs/outputs here
-        let input_A_names = vec!["0.input_A"];
+        // Define which variables are from which party.
+        // loaded from config file in the future
+        let input_A_names = vec!["0.input_A, 0.w0, 0.b0, 0.w1, 0.b1,"];
         let input_B_names = vec!["0.input_B"];
         let output_names = vec!["0.ip"];
 
@@ -107,19 +134,17 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
             for name_v in lhs_var.names.iter() {
                 for name_a in input_A_names.as_slice() {
                     if name_v.contains(name_a) {
-                        circ.input_A_vars
-                            .insert(self.input_A_vars.len(), lhs_var.id);
+                        config.input_A_vars.push(lhs_var.id);
                     }
                 }
                 for name_b in input_B_names.as_slice() {
                     if name_v.contains(name_b) {
-                        circ.input_B_vars
-                            .insert(self.input_B_vars.len(), lhs_var.id);
+                        config.input_B_vars.push(lhs_var.id);
                     }
                 }
                 for name_o in output_names.as_slice() {
                     if name_v.contains(name_o) {
-                        circ.outputs.insert(self.outputs.len(), lhs_var.id);
+                        config.outputs.push(lhs_var.id);
                     }
                 }
             }
@@ -127,19 +152,17 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
             for name_v in rhs_var.names.as_slice() {
                 for name_a in input_A_names.iter() {
                     if name_v.contains(name_a) {
-                        circ.input_A_vars
-                            .insert(self.input_A_vars.len(), rhs_var.id);
+                        config.input_A_vars.push(rhs_var.id);
                     }
                 }
                 for name_b in input_B_names.as_slice() {
                     if name_v.contains(name_b) {
-                        circ.input_B_vars
-                            .insert(self.input_B_vars.len(), rhs_var.id);
+                        config.input_B_vars.push(rhs_var.id);
                     }
                 }
                 for name_o in output_names.as_slice() {
                     if name_v.contains(name_o) {
-                        circ.outputs.insert(self.outputs.len(), rhs_var.id);
+                        config.outputs.push(rhs_var.id);
                     }
                 }
             }
@@ -219,6 +242,11 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
                             o = gate.output;
                             output = Some(out);
                         }
+                        AGateType::ALt => {
+                            // call gadgets here
+                            // sub
+                            // sign
+                        }
                         _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
                     }
                 }
@@ -233,7 +261,7 @@ impl TryInto<ArithmeticCircuit> for RawCircuit {
             panic!("Output is not defined");
         }
         builder.add_output(&output.unwrap());
-        builder.build()
+        builder.build().and_then(|circ| Ok((circ, config)))
     }
 }
 
