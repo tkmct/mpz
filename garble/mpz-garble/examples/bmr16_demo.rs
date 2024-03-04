@@ -1,8 +1,4 @@
-use std::sync::Arc;
-
 use futures::SinkExt;
-use utils_aio::duplex::MemoryDuplex;
-
 use mpz_circuits::{
     arithmetic::{
         ops::{add, cmul, mul},
@@ -10,9 +6,6 @@ use mpz_circuits::{
     },
     ArithmeticCircuit, ArithmeticCircuitBuilder, BuilderError,
 };
-use mpz_garble_core::msg::GarbleMessage;
-use mpz_ot::mock::mock_ot_shared_pair;
-
 use mpz_garble::{
     bmr16::{
         config::ArithValueIdConfig,
@@ -21,9 +14,12 @@ use mpz_garble::{
     },
     value::{ValueId, ValueRef},
 };
-
+use mpz_garble_core::msg::GarbleMessage;
+use mpz_ot::mock::mock_ot_shared_pair;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::{collections::HashMap, error, fs};
+use utils_aio::duplex::MemoryDuplex;
 
 // Set of structs from circom2mpc compiler
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -42,28 +38,111 @@ pub enum AGateType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ArithmeticVar {
-    pub var_id: u32,
-    pub var_name: String,
-    pub is_const: bool,
-    pub const_value: u32,
+pub struct ArithmeticGate {
+    id: u32,
+    gate_type: AGateType,
+    lh_input: u32,
+    rh_input: u32,
+    output: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ArithmeticNode {
-    pub gate_id: u32,
-    pub gate_type: AGateType,
-    pub input_lhs_id: u32,
-    pub input_rhs_id: u32,
-    pub output_id: u32,
+pub struct Node {
+    id: u32,
+    signals: Vec<u32>,
+    names: Vec<String>,
+    is_const: bool,
+    const_value: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+/// Represents an arithmetic circuit, with a set of variables and gates.
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct RawCircuit {
-    pub gate_count: u32,
-    pub var_count: u32,
-    pub vars: HashMap<u32, ArithmeticVar>,
-    pub gates: HashMap<u32, ArithmeticNode>,
+    vars: HashMap<u32, Option<u32>>,
+    nodes: Vec<Node>,
+    gates: Vec<ArithmeticGate>,
+}
+
+impl RawCircuit {
+    fn get_node_by_id(&self, id: u32) -> Option<Node> {
+        for node in &self.nodes {
+            if node.id == id {
+                return Some(node.clone());
+            }
+        }
+        None
+    }
+}
+
+#[derive(Debug)]
+pub struct CircuitConfig {
+    /// list of ids which is from Alice
+    pub a_private_inputs: Vec<(String, u32)>,
+    pub b_private_inputs: Vec<(String, u32)>,
+    pub outputs: Vec<(String, u32)>,
+}
+
+impl CircuitConfig {
+    pub fn new() -> Self {
+        Self {
+            a_private_inputs: vec![],
+            b_private_inputs: vec![],
+            outputs: vec![],
+        }
+    }
+
+    pub fn gen_a_input_config(&self) -> Vec<ArithValueIdConfig> {
+        let mut config = vec![];
+        for a_priv in self.a_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&a_priv.0),
+                ty: CrtValueType::U32,
+                value: Some(ArithValue::U32(10)),
+            })
+        }
+        for b_priv in self.b_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&b_priv.0),
+                ty: CrtValueType::U32,
+                value: None,
+            })
+        }
+        config
+    }
+
+    pub fn gen_b_input_config(&self) -> Vec<ArithValueIdConfig> {
+        let mut config = vec![];
+        for a_priv in self.a_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&a_priv.0),
+                ty: CrtValueType::U32,
+                value: None,
+            })
+        }
+        for b_priv in self.b_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&b_priv.0),
+                ty: CrtValueType::U32,
+                value: Some(ArithValue::U32(10)),
+            })
+        }
+        config
+    }
+
+    pub fn get_input_refs(&self) -> Vec<ValueRef> {
+        let mut refs = vec![];
+        for a_priv in self.a_private_inputs.iter() {
+            refs.push(ValueRef::Value {
+                id: ValueId::new(&a_priv.0),
+            })
+        }
+        for b_priv in self.b_private_inputs.iter() {
+            refs.push(ValueRef::Value {
+                id: ValueId::new(&b_priv.0),
+            })
+        }
+        refs
+    }
 }
 
 enum Wire {
@@ -71,118 +150,159 @@ enum Wire {
     Const(u32),
 }
 
-impl TryInto<ArithmeticCircuit> for RawCircuit {
-    type Error = BuilderError;
+/// Parse raw circuit to bmr16 arithmeti circuit representation
+/// specify private inputs from both parties
+fn parse_raw_circuit(
+    raw_circ: &RawCircuit,
+    private_inputs_from_a: &[&str],
+    private_inputs_from_b: &[&str],
+    outputs: &[&str],
+) -> Result<(ArithmeticCircuit, CircuitConfig), BuilderError> {
+    let mut config = CircuitConfig::new();
+    let builder = ArithmeticCircuitBuilder::new();
+    // take each gate and append in the builder
+    // mark input wire
+    let mut used_vars = HashMap::<u32, CrtRepr>::new();
 
-    fn try_into(self) -> Result<ArithmeticCircuit, BuilderError> {
-        let builder = ArithmeticCircuitBuilder::new();
-        // take each gate and append in the builder
-        // mark input wire
-        let mut used_vars = HashMap::<u32, CrtRepr>::new();
-        // TODO: load output from config file?
-        // for now, use output of last gate as an output of a circuit.
-        let mut output = None;
-        let mut o = 0;
+    for gate in raw_circ.gates.iter() {
+        let lhs_var = raw_circ.get_node_by_id(gate.lh_input).unwrap();
+        let rhs_var = raw_circ.get_node_by_id(gate.rh_input).unwrap();
+        let out_var = raw_circ.get_node_by_id(gate.output).unwrap();
 
-        let mut keys = self.gates.keys().collect::<Vec<_>>();
-        keys.sort();
+        println!("Gate: {:?}", gate);
+        // println!("LHS Node: {:?}", lhs_var);
+        // println!("RHS Node: {:?}", rhs_var);
+        // println!("OUT Node: {:?}", out_var);
 
-        for id in keys.iter() {
-            let gate = self.gates.get(id).expect("gate should be set");
-            let lhs_var = self.vars.get(&gate.input_lhs_id).unwrap();
-            let rhs_var = self.vars.get(&gate.input_rhs_id).unwrap();
-
-            let lhs = if lhs_var.is_const {
-                Wire::Const(lhs_var.const_value)
-            } else {
-                Wire::Var(if let Some(crt) = used_vars.get(&gate.input_lhs_id) {
-                    crt.clone()
-                } else {
-                    // check if const or not
-                    println!("Input added: {:?}", gate.input_lhs_id);
-                    let v = builder.add_input::<u32>().unwrap();
-                    used_vars.insert(gate.input_lhs_id, v.clone());
-                    v
-                })
-            };
-
-            let rhs = if rhs_var.is_const {
-                Wire::Const(rhs_var.const_value)
-            } else {
-                Wire::Var(if let Some(crt) = used_vars.get(&gate.input_rhs_id) {
-                    crt.clone()
-                } else {
-                    // check if const or not
-                    let v = builder.add_input::<u32>().unwrap();
-                    println!("Input added: {:?}", gate.input_rhs_id);
-                    used_vars.insert(gate.input_rhs_id, v.clone());
-                    v
-                })
-            };
-
-            match (lhs, rhs) {
-                (Wire::Const(c), Wire::Var(v)) | (Wire::Var(v), Wire::Const(c)) => {
-                    match gate.gate_type {
-                        AGateType::AMul => {
-                            // add cmul gate.
-                            let mut state = builder.state().borrow_mut();
-                            let out = cmul(&mut state, &v, c);
-                            used_vars.insert(gate.output_id, out.clone());
-
-                            o = gate.output_id;
-                            output = Some(out);
-                        }
-                        AGateType::AAdd => {
-                            // add cmul gate.
-                            let mut state = builder.state().borrow_mut();
-                            let out = cmul(&mut state, &v, c);
-                            used_vars.insert(gate.output_id, out.clone());
-
-                            o = gate.output_id;
-                            output = Some(out);
-                        }
-
-                        _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
-                    }
+        let lhs_name = lhs_var
+            .names
+            .into_iter()
+            .find(|name_v| {
+                if private_inputs_from_a
+                    .iter()
+                    .any(|&name_a| name_v.contains(name_a))
+                {
+                    config.a_private_inputs.push((name_v.into(), lhs_var.id));
+                    return true;
                 }
-                (Wire::Var(lhs), Wire::Var(rhs)) => {
-                    match gate.gate_type {
-                        AGateType::AAdd => {
-                            // add add gate to builder
-                            // check if crt repr exists in the used_vars
-                            // if not, create new feed and put in the map
-                            let mut state = builder.state().borrow_mut();
-                            let out = add(&mut state, &lhs, &rhs).unwrap();
-                            used_vars.insert(gate.output_id, out.clone());
-
-                            o = gate.output_id;
-                            output = Some(out);
-                        }
-                        AGateType::AMul => {
-                            // add mul gate or cmul gate
-                            let mut state = builder.state().borrow_mut();
-                            let out = mul(&mut state, &lhs, &rhs).unwrap();
-                            used_vars.insert(gate.output_id, out.clone());
-
-                            o = gate.output_id;
-                            output = Some(out);
-                        }
-                        _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
-                    }
+                if private_inputs_from_b
+                    .iter()
+                    .any(|&name_b| name_v.contains(name_b))
+                {
+                    config.b_private_inputs.push((name_v.into(), lhs_var.id));
+                    return true;
                 }
-                _ => {
-                    panic!("Unsupported operation for two const values. Consider pre calculation.")
+                false
+            })
+            .unwrap_or("".into());
+
+        let rhs_name = rhs_var
+            .names
+            .into_iter()
+            .find(|name_v| {
+                if private_inputs_from_a
+                    .iter()
+                    .any(|&name_a| name_v.contains(name_a))
+                {
+                    config.a_private_inputs.push((name_v.into(), rhs_var.id));
+                    return true;
                 }
-            };
+                if private_inputs_from_b
+                    .iter()
+                    .any(|&name_b| name_v.contains(name_b))
+                {
+                    config.b_private_inputs.push((name_v.into(), rhs_var.id));
+                    return true;
+                }
+                false
+            })
+            .unwrap_or("".into());
+
+        for name_v in out_var.names.as_slice() {
+            if outputs.iter().any(|&name_o| name_v.contains(name_o)) {
+                config.outputs.push((name_v.into(), out_var.id));
+            }
         }
-        // add output
-        println!("output_id: {:?}", o);
-        if output.is_none() {
-            panic!("Output is not defined");
-        }
-        builder.add_output(&output.unwrap());
-        builder.build()
+
+        // FIXME: memoize vars outside the lhs initializer
+        let lhs = if lhs_var.is_const {
+            Wire::Const(lhs_var.const_value)
+        } else {
+            Wire::Var(if let Some(crt) = used_vars.get(&gate.lh_input) {
+                crt.clone()
+            } else {
+                println!("Input added lh: {:?} {:?}", lhs_name, gate.lh_input);
+                let v = builder.add_input::<u32>(lhs_name).unwrap();
+                used_vars.insert(gate.lh_input, v.repr.clone());
+                v.repr
+            })
+        };
+
+        // FIXME: memoize vars outside the lhs initializer
+        let rhs = if rhs_var.is_const {
+            Wire::Const(rhs_var.const_value)
+        } else {
+            Wire::Var(if let Some(crt) = used_vars.get(&gate.rh_input) {
+                crt.clone()
+            } else {
+                println!("Input added rh: {:?} {:?}", rhs_name, gate.rh_input);
+                let v = builder.add_input::<u32>(rhs_name).unwrap();
+                used_vars.insert(gate.rh_input, v.repr.clone());
+                v.repr
+            })
+        };
+
+        match (lhs, rhs) {
+            (Wire::Const(c), Wire::Var(v)) | (Wire::Var(v), Wire::Const(c)) => {
+                match gate.gate_type {
+                    AGateType::AMul => {
+                        let mut state = builder.state().borrow_mut();
+                        let out = cmul(&mut state, &v, c);
+                        used_vars.insert(gate.output, out.clone());
+                    }
+                    AGateType::AAdd => {
+                        let mut state = builder.state().borrow_mut();
+                        // FIXME: this should be add gate?
+                        let out = cmul(&mut state, &v, c);
+                        used_vars.insert(gate.output, out.clone());
+                    }
+
+                    _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
+                }
+            }
+            (Wire::Var(lhs), Wire::Var(rhs)) => {
+                match gate.gate_type {
+                    AGateType::AAdd => {
+                        // check if crt repr exists in the used_vars
+                        // if not, create new feed and put in the map
+                        let mut state = builder.state().borrow_mut();
+                        let out = add(&mut state, &lhs, &rhs).unwrap();
+                        used_vars.insert(gate.output, out.clone());
+                    }
+                    AGateType::AMul => {
+                        let mut state = builder.state().borrow_mut();
+                        let out = mul(&mut state, &lhs, &rhs).unwrap();
+                        used_vars.insert(gate.output, out.clone());
+                    }
+                    AGateType::ALt => {
+                        // call gadgets here
+                        // sub
+                        // sign
+                    }
+                    _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
+                }
+            }
+            _ => {
+                panic!("Unsupported operation for two const values. Consider pre calculation.")
+            }
+        };
     }
+    for out in config.outputs.iter() {
+        if let Some(crt) = used_vars.get(&out.1) {
+            builder.add_output(crt);
+        }
+    }
+    builder.build().map(|circ| (circ, config))
 }
 
 #[tokio::main]
@@ -190,9 +310,22 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     // Load circuit file
     let raw = fs::read_to_string("./examples/circ.json")?;
     let raw_circ: RawCircuit = serde_json::from_str(&raw)?;
-    // dbg!(circ.clone());
 
-    let circ: Arc<ArithmeticCircuit> = Arc::new(raw_circ.try_into()?);
+    let (circ, config) = parse_raw_circuit(
+        &raw_circ,
+        &vec!["0.input_A", "0.w0", "0.b0", "0.w1", "0.b1"],
+        &vec!["0.input_B"],
+        &vec!["0.ip"],
+    )?;
+    println!("Config: {:?}", config);
+    println!(
+        "Circuit inputs: {:?}",
+        circ.inputs()
+            .iter()
+            .map(|i| i.name.clone())
+            .collect::<Vec<_>>()
+    );
+    let circ = Arc::new(circ);
     println!("[MPZ circ] inputs: {:?}", circ.inputs().len());
     println!("[MPZ circ] outputs: {:#?}", circ.outputs());
 
@@ -212,71 +345,20 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
 
     let generator_fut = {
         // println!("[GEN]-----------start generator--------------");
-        let a_0 = ValueRef::Value {
-            id: ValueId::new("a_0"),
-        };
-        let a_1 = ValueRef::Value {
-            id: ValueId::new("a_1"),
-        };
-        let a_2 = ValueRef::Value {
-            id: ValueId::new("a_2"),
-        };
-        let b_0 = ValueRef::Value {
-            id: ValueId::new("b_0"),
-        };
-        let b_1 = ValueRef::Value {
-            id: ValueId::new("b_1"),
-        };
-        let b_2 = ValueRef::Value {
-            id: ValueId::new("b_2"),
-        };
-
         let out_ref = ValueRef::Value {
             id: ValueId::new("output"),
         };
 
-        // list input configs
-        let input_configs = vec![
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_0"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_1"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_2"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_0"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_1"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_2"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-        ];
-
+        // TODO: need to check if the input of the arithmetic circuit corresponds to intended input variables.
+        let input_config = config.gen_a_input_config();
+        let input_refs = config.get_input_refs();
         let circ = circ.clone();
 
-        // prepare input configs for a, b
         async move {
             generator
                 .setup_inputs(
                     "test_gc",
-                    &input_configs,
+                    &input_config,
                     &mut generator_channel,
                     &generator_ot_send,
                 )
@@ -290,7 +372,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             let _encoded_outputs = generator
                 .generate(
                     circ,
-                    &[a_0, a_1, a_2, b_0, b_1, b_2],
+                    &input_refs,
                     &[out_ref.clone()],
                     &mut generator_channel,
                 )
@@ -305,71 +387,19 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
 
     let evaluator_fut = {
         println!("[EV]-----------start evaluator--------------");
-        // let (_sink, mut stream) = evaluator_channel.split();
-        let a_0 = ValueRef::Value {
-            id: ValueId::new("a_0"),
-        };
-        let a_1 = ValueRef::Value {
-            id: ValueId::new("a_1"),
-        };
-        let a_2 = ValueRef::Value {
-            id: ValueId::new("a_2"),
-        };
-        let b_0 = ValueRef::Value {
-            id: ValueId::new("b_0"),
-        };
-        let b_1 = ValueRef::Value {
-            id: ValueId::new("b_1"),
-        };
-        let b_2 = ValueRef::Value {
-            id: ValueId::new("b_2"),
-        };
-
         let out_ref = ValueRef::Value {
             id: ValueId::new("output"),
         };
 
-        // list input configs
-        let input_configs = vec![
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_0"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_1"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_2"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_0"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_1"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_2"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-        ];
-
+        let input_config = config.gen_b_input_config();
+        let input_refs = config.get_input_refs();
         println!("[EV] async move");
         async move {
             println!("[EV] setup inputs start");
             evaluator
                 .setup_inputs(
                     "test_gc",
-                    &input_configs,
+                    &input_config,
                     &mut evaluator_channel,
                     &evaluator_ot_recv,
                 )
@@ -381,7 +411,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             let _encoded_outputs = evaluator
                 .evaluate(
                     circ.clone(),
-                    &[a_0, a_1, a_2, b_0, b_1, b_2],
+                    &input_refs,
                     &[out_ref.clone()],
                     &mut evaluator_channel,
                 )

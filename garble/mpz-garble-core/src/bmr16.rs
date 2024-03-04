@@ -26,10 +26,10 @@ mod tests {
 
     fn adder_circ<T: CrtLen + ToCrtRepr>() -> ArithmeticCircuit {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<T>().unwrap();
-        let y = builder.add_input::<T>().unwrap();
+        let x = builder.add_input::<T>("x".into()).unwrap();
+        let y = builder.add_input::<T>("y".into()).unwrap();
 
-        let z = add(&mut builder.state().borrow_mut(), &x, &y).unwrap();
+        let z = add(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
         builder.add_output(&z);
         builder.build().unwrap()
     }
@@ -38,10 +38,10 @@ mod tests {
     fn mul_circ() -> ArithmeticCircuit {
         // TODO: write complex circuit
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
-        let y = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let y = builder.add_input::<u32>("y".into()).unwrap();
 
-        let z = mul(&mut builder.state().borrow_mut(), &x, &y).unwrap();
+        let z = mul(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
         builder.add_output(&z);
         builder.build().unwrap()
     }
@@ -71,7 +71,7 @@ mod tests {
         let full_inputs: Vec<EncodedCrtValue<crt_encoding_state::Full>> = circ
             .inputs()
             .iter()
-            .map(|input| encoder.encode_by_len(0, input.len()))
+            .map(|input| encoder.encode_by_len(0, input.repr.len()))
             .collect();
 
         let mut gen = BMR16Generator::<10>::new(
@@ -151,7 +151,7 @@ mod tests {
         let full_inputs: Vec<EncodedCrtValue<crt_encoding_state::Full>> = circ
             .inputs()
             .iter()
-            .map(|input| encoder.encode_by_len(0, input.len()))
+            .map(|input| encoder.encode_by_len(0, input.repr.len()))
             .collect();
 
         let mut gen = BMR16Generator::<10>::new(

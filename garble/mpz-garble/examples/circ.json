@@ -1,1 +1,187 @@
-{"gate_count":6,"var_count":47,"vars":{"29":{"var_id":29,"var_name":"sum","is_const":false,"const_value":0},"76":{"var_id":76,"var_name":"3","is_const":true,"const_value":3},"28":{"var_id":28,"var_name":"auto_var_22","is_const":false,"const_value":0},"43":{"var_id":43,"var_name":"1","is_const":true,"const_value":1},"2":{"var_id":2,"var_name":"input_A_0","is_const":false,"const_value":0},"27":{"var_id":27,"var_name":"0","is_const":true,"const_value":0},"4":{"var_id":4,"var_name":"input_A_2","is_const":false,"const_value":0},"48":{"var_id":48,"var_name":"3","is_const":true,"const_value":3},"71":{"var_id":71,"var_name":"1","is_const":true,"const_value":1},"95":{"var_id":95,"var_name":"1","is_const":true,"const_value":1},"94":{"var_id":94,"var_name":"2","is_const":true,"const_value":2},"66":{"var_id":66,"var_name":"1","is_const":true,"const_value":1},"5":{"var_id":5,"var_name":"3","is_const":true,"const_value":3},"23":{"var_id":23,"var_name":"0","is_const":true,"const_value":0},"6":{"var_id":6,"var_name":"input_B_0","is_const":false,"const_value":0},"67":{"var_id":67,"var_name":"1","is_const":true,"const_value":1},"19":{"var_id":19,"var_name":"3","is_const":true,"const_value":3},"14":{"var_id":14,"var_name":"0","is_const":true,"const_value":0},"83":{"var_id":83,"var_name":"2","is_const":true,"const_value":2},"90":{"var_id":90,"var_name":"2","is_const":true,"const_value":2},"104":{"var_id":104,"var_name":"3","is_const":true,"const_value":3},"55":{"var_id":55,"var_name":"1","is_const":true,"const_value":1},"56":{"var_id":56,"var_name":"auto_var_51","is_const":false,"const_value":0},"13":{"var_id":13,"var_name":"i","is_const":false,"const_value":0},"63":{"var_id":63,"var_name":"1","is_const":true,"const_value":1},"3":{"var_id":3,"var_name":"input_A_1","is_const":false,"const_value":0},"9":{"var_id":9,"var_name":"ip","is_const":false,"const_value":0},"82":{"var_id":82,"var_name":"2","is_const":true,"const_value":2},"91":{"var_id":91,"var_name":"2","is_const":true,"const_value":2},"8":{"var_id":8,"var_name":"input_B_2","is_const":false,"const_value":0},"10":{"var_id":10,"var_name":"sum","is_const":false,"const_value":0},"54":{"var_id":54,"var_name":"1","is_const":true,"const_value":1},"62":{"var_id":62,"var_name":"1","is_const":true,"const_value":1},"84":{"var_id":84,"var_name":"auto_var_79","is_const":false,"const_value":0},"15":{"var_id":15,"var_name":"0","is_const":true,"const_value":0},"26":{"var_id":26,"var_name":"0","is_const":true,"const_value":0},"11":{"var_id":11,"var_name":"0","is_const":true,"const_value":0},"57":{"var_id":57,"var_name":"sum","is_const":false,"const_value":0},"38":{"var_id":38,"var_name":"0","is_const":true,"const_value":0},"34":{"var_id":34,"var_name":"0","is_const":true,"const_value":0},"7":{"var_id":7,"var_name":"input_B_1","is_const":false,"const_value":0},"99":{"var_id":99,"var_name":"1","is_const":true,"const_value":1},"39":{"var_id":39,"var_name":"1","is_const":true,"const_value":1},"85":{"var_id":85,"var_name":"sum","is_const":false,"const_value":0},"1":{"var_id":1,"var_name":"3","is_const":true,"const_value":3},"12":{"var_id":12,"var_name":"0","is_const":true,"const_value":0},"35":{"var_id":35,"var_name":"0","is_const":true,"const_value":0}},"gates":{"1":{"gate_id":1,"gate_type":"AMul","input_lhs_id":2,"input_rhs_id":6,"output_id":28},"5":{"gate_id":5,"gate_type":"AMul","input_lhs_id":4,"input_rhs_id":8,"output_id":84},"6":{"gate_id":6,"gate_type":"AAdd","input_lhs_id":57,"input_rhs_id":84,"output_id":85},"3":{"gate_id":3,"gate_type":"AMul","input_lhs_id":3,"input_rhs_id":7,"output_id":56},"4":{"gate_id":4,"gate_type":"AAdd","input_lhs_id":28,"input_rhs_id":56,"output_id":57}}}
+{
+    "vars": {
+        "2221408224": null,
+        "2393457393": null,
+        "1775308644": null,
+        "3740606850": null,
+        "517529094": null,
+        "3005467289": null,
+        "3464924108": null,
+        "2137720537": null,
+        "1628825018": null,
+        "3990515094": null,
+        "1229279767": null,
+        "2679531896": null,
+        "377452755": null,
+        "3059291092": null,
+        "1221765395": null
+    },
+    "nodes": [
+        {
+            "id": 3737261030,
+            "signals": [
+                2221408224
+            ],
+            "names": [
+                "0.input_A[0]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 3293950334,
+            "signals": [
+                3005467289
+            ],
+            "names": [
+                "0.input_A[1]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 3411146477,
+            "signals": [
+                1775308644
+            ],
+            "names": [
+                "0.input_A[2]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 780340119,
+            "signals": [
+                2393457393
+            ],
+            "names": [
+                "0.input_B[0]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 2094006991,
+            "signals": [
+                1229279767
+            ],
+            "names": [
+                "0.input_B[1]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 1557890902,
+            "signals": [
+                1221765395
+            ],
+            "names": [
+                "0.input_B[2]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 3297607074,
+            "signals": [
+                3740606850,
+                1628825018
+            ],
+            "names": [
+                "0.random_3284717776",
+                "0.sum[0]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 1763980618,
+            "signals": [
+                2679531896
+            ],
+            "names": [
+                "0.random_1029536315"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 4285032068,
+            "signals": [
+                3990515094,
+                3059291092
+            ],
+            "names": [
+                "0.random_4199378421",
+                "0.sum[1]"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 1067840954,
+            "signals": [
+                3464924108
+            ],
+            "names": [
+                "0.random_923339207"
+            ],
+            "is_const": false,
+            "const_value": 0
+        },
+        {
+            "id": 183742626,
+            "signals": [
+                517529094,
+                377452755,
+                2137720537
+            ],
+            "names": [
+                "0.random_543817357",
+                "0.sum[2]",
+                "0.ip"
+            ],
+            "is_const": false,
+            "const_value": 0
+        }
+    ],
+    "gates": [
+        {
+            "id": 0,
+            "gate_type": "AMul",
+            "lh_input": 3737261030,
+            "rh_input": 780340119,
+            "output": 3297607074
+        },
+        {
+            "id": 1,
+            "gate_type": "AMul",
+            "lh_input": 3293950334,
+            "rh_input": 2094006991,
+            "output": 1763980618
+        },
+        {
+            "id": 2,
+            "gate_type": "AAdd",
+            "lh_input": 3297607074,
+            "rh_input": 1763980618,
+            "output": 4285032068
+        },
+        {
+            "id": 3,
+            "gate_type": "AMul",
+            "lh_input": 3411146477,
+            "rh_input": 1557890902,
+            "output": 1067840954
+        },
+        {
+            "id": 4,
+            "gate_type": "AAdd",
+            "lh_input": 4285032068,
+            "rh_input": 1067840954,
+            "output": 183742626
+        }
+    ]
+}
