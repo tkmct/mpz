@@ -59,6 +59,7 @@ impl ArithmeticCircuit {
             .iter()
             .map(|gate| match gate {
                 ArithGate::Add { x, y, z } => format!("\tADD({},{},{})\n", x.id(), y.id(), z.id()),
+                ArithGate::Sub { x, y, z } => format!("\tSUB({},{},{})\n", x.id(), y.id(), z.id()),
                 ArithGate::Mul { x, y, z } => format!("\tMUL({},{},{})\n", x.id(), y.id(), z.id()),
                 ArithGate::Cmul { x, c, z } => {
                     format!("\tCMUL({},const{},{})\n", x.id(), c, z.id())
@@ -148,6 +149,12 @@ impl ArithmeticCircuit {
                     let y = feeds[y.id()].expect("Feed should be set");
 
                     feeds[z.id()] = Some((x + y) % m);
+                }
+                ArithGate::Sub { x, y, z } => {
+                    let x = feeds[x.id()].expect("Feed should be set");
+                    let y = feeds[y.id()].expect("Feed should be set");
+
+                    feeds[z.id()] = Some((x - y) % m);
                 }
                 ArithGate::Cmul { x, c, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");

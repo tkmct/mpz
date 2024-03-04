@@ -44,6 +44,38 @@ pub fn add(
     Ok(repr)
 }
 
+/// Subtraction
+pub fn sub(
+    state: &mut ArithBuilderState,
+    x: &CrtRepr,
+    y: &CrtRepr,
+) -> Result<CrtRepr, ArithCircuitError> {
+    if !is_same_crt_len(x, y) {
+        return Err(TypeError::UnequalLength(x.len(), y.len()).into());
+    }
+
+    let repr = match (x, y) {
+        (CrtRepr::Bool(xval), CrtRepr::Bool(yval)) => {
+            let z = state.add_sub_gate(&xval.nodes()[0], &yval.nodes()[0])?;
+            CrtRepr::Bool(CrtValue::<1>::new([z]))
+        }
+        (CrtRepr::U32(xval), CrtRepr::U32(yval)) => {
+            let zval: [ArithNode<Feed>; 10] = std::array::from_fn(|i| {
+                state
+                    .add_sub_gate(&xval.nodes()[i], &yval.nodes()[i])
+                    .unwrap() // TODO: handle error correctly!
+            });
+            CrtRepr::U32(CrtValue::<10>::new(zval))
+        }
+        _ => {
+            // This should not happen
+            return Err(TypeError::UnequalLength(x.len(), y.len()).into());
+        }
+    };
+
+    Ok(repr)
+}
+
 /// Multiply two crt values.
 /// Multiply gates for each ArithNode and returns new CrtRepr
 pub fn mul(
@@ -229,7 +261,7 @@ pub fn crt_fractional_mixed_radix(
 
 /// Returns 0 if x is positive, 1 if x is negative
 /// Returning ArithNode has mod 2
-pub fn crt_sign(
+pub fn crt_sign_inner(
     state: &mut ArithBuilderState,
     x: &CrtRepr,
     accuracy: &str,
@@ -241,6 +273,28 @@ pub fn crt_sign(
     state.add_proj_gate(&res, 2, tt)
 }
 
+/// Returns 0 if x is positive, 1 if x is negative with given number of Wires
+pub fn crt_sign<const N: usize>(
+    state: &mut ArithBuilderState,
+    x: &CrtRepr,
+    accuracy: &str,
+) -> Result<CrtRepr, ArithCircuitError> {
+    let sign = crt_sign_inner(state, x, accuracy)?;
+    match N {
+        1 => Ok(CrtRepr::Bool(CrtValue::new([sign]))),
+        10 => {
+            let v: [ArithNode<Feed>; 10] = std::array::from_fn(|i| {
+                let p = PRIMES[i];
+                let tt = vec![0, 1];
+                state.add_proj_gate(&sign, p, tt).unwrap()
+            });
+
+            Ok(CrtRepr::U32(CrtValue::new(v)))
+        }
+        _ => Err(ArithCircuitError::InvalidModuliLen(N)),
+    }
+}
+
 /// Return 1 if x is positive and -1 if x is negative. -1 is represented as P-1.
 /// N is a number of moduli (=wires) used to represent resulting value
 pub fn crt_sgn<const N: usize>(
@@ -248,7 +302,7 @@ pub fn crt_sgn<const N: usize>(
     x: &CrtRepr,
     accuracy: &str,
 ) -> Result<CrtRepr, ArithCircuitError> {
-    let sign = crt_sign(state, x, accuracy)?;
+    let sign = crt_sign_inner(state, x, accuracy)?;
     match N {
         1 => {
             let v: [ArithNode<Feed>; 1] = std::array::from_fn(|i| {

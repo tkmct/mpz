@@ -15,6 +15,11 @@ pub enum ArithGate {
         y: ArithNode<Sink>,
         z: ArithNode<Feed>,
     },
+    Sub {
+        x: ArithNode<Sink>,
+        y: ArithNode<Sink>,
+        z: ArithNode<Feed>,
+    },
     Mul {
         x: ArithNode<Sink>,
         y: ArithNode<Sink>,
@@ -39,6 +44,7 @@ impl ArithGate {
     pub fn gate_type(&self) -> ArithGateType {
         match self {
             ArithGate::Add { .. } => ArithGateType::Add,
+            ArithGate::Sub { .. } => ArithGateType::Sub,
             ArithGate::Mul { .. } => ArithGateType::Mul,
             ArithGate::Cmul { .. } => ArithGateType::Cmul,
             ArithGate::Proj { .. } => ArithGateType::Proj,
@@ -49,6 +55,7 @@ impl ArithGate {
     pub fn x(&self) -> &ArithNode<Sink> {
         match self {
             ArithGate::Add { x, .. } => x,
+            ArithGate::Sub { x, .. } => x,
             ArithGate::Mul { x, .. } => x,
             ArithGate::Cmul { x, .. } => x,
             ArithGate::Proj { x, .. } => x,
@@ -60,6 +67,7 @@ impl ArithGate {
     pub fn y(&self) -> Option<&ArithNode<Sink>> {
         match self {
             ArithGate::Add { y, .. } => Some(y),
+            ArithGate::Sub { y, .. } => Some(y),
             ArithGate::Mul { y, .. } => Some(y),
             ArithGate::Cmul { .. } => None,
             ArithGate::Proj { .. } => None,
@@ -70,6 +78,7 @@ impl ArithGate {
     pub fn z(&self) -> &ArithNode<Feed> {
         match self {
             ArithGate::Add { z, .. } => z,
+            ArithGate::Sub { z, .. } => z,
             ArithGate::Mul { z, .. } => z,
             ArithGate::Cmul { z, .. } => z,
             ArithGate::Proj { z, .. } => z,
@@ -82,6 +91,8 @@ impl ArithGate {
 pub enum ArithGateType {
     /// Addition gate.
     Add,
+    /// Subtraction gate.
+    Sub,
     /// Multiplication gate.
     Mul,
     /// Constant multiplication gate.

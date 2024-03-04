@@ -131,6 +131,30 @@ impl ArithBuilderState {
         Ok(out)
     }
 
+    /// Add ADD gate to a circuit.
+    pub(crate) fn add_sub_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        y: &ArithNode<Feed>,
+    ) -> Result<ArithNode<Feed>, ArithCircuitError> {
+        // check lhs and rhs has same modulus
+        if x.modulus() != y.modulus() {
+            return Err(ArithCircuitError::UnequalModuli(x.modulus(), y.modulus()));
+        }
+
+        let out = self.add_feed(x.modulus());
+
+        let gate = ArithGate::Sub {
+            x: x.into(),
+            y: y.into(),
+            z: out,
+        };
+        self.add_count += 1;
+        self.gates.push(gate);
+
+        Ok(out)
+    }
+
     /// Add CMUL gate to a circuit
     pub(crate) fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: u32) -> ArithNode<Feed> {
         let out = self.add_feed(x.modulus());

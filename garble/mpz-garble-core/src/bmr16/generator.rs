@@ -1,5 +1,5 @@
 //! BMR16 generator implementation
-use crate::encoding::get_delta_by_modulus;
+use crate::encoding::{get_delta_by_modulus, negate_label};
 use std::sync::Arc;
 
 use blake3::Hasher;
@@ -157,6 +157,24 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     // set zero label for z
                     low_labels[z.id()] = Some(add_label(&x_0, &y_0));
                 }
+                ArithGate::Sub { x, y, z } => {
+                    // zero labels for input x and y
+                    let x_0 = low_labels
+                        .get(x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+
+                    let y_0 = low_labels
+                        .get(y.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+                    // set zero label for z
+                    let neg_y_0 = negate_label(&y_0);
+                    low_labels[z.id()] = Some(add_label(&x_0, &neg_y_0));
+                }
+
                 ArithGate::Cmul { x, c, z } => {
                     // zero labels for input x
                     let x_0 = low_labels

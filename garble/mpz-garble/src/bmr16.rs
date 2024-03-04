@@ -16,7 +16,7 @@ mod tests {
 
     use mpz_circuits::{
         arithmetic::{
-            ops::{add, cmul, mul},
+            ops::{add, cmul, mul, sub},
             types::{ArithValue, CrtValueType},
         },
         ArithmeticCircuit, ArithmeticCircuitBuilder,
@@ -41,7 +41,8 @@ mod tests {
             let mut state = builder.state().borrow_mut();
             let c = mul(&mut state, &a.repr, &b.repr).unwrap();
             let d = cmul(&mut state, &a.repr, 3);
-            out = add(&mut state, &c, &d).unwrap();
+            let e = add(&mut state, &c, &d).unwrap();
+            out = sub(&mut state, &e, &a.repr).unwrap();
         }
 
         builder.add_output(&out);
@@ -192,6 +193,6 @@ mod tests {
         let (_, evaluator_output) = tokio::join!(generator_fut, evaluator_fut);
         println!("Decoded evaluator output: {:?}", evaluator_output);
 
-        assert_eq!(evaluator_output.unwrap(), vec![ArithValue::U32(340)]);
+        assert_eq!(evaluator_output.unwrap(), vec![ArithValue::U32(330)]);
     }
 }

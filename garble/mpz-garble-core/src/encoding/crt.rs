@@ -49,6 +49,17 @@ pub fn add_label(x: &LabelModN, y: &LabelModN) -> LabelModN {
     LabelModN::new(z_inner, q)
 }
 
+/// Negate label
+pub fn negate_label(x: &LabelModN) -> LabelModN {
+    let q = x.modulus;
+    let z_inner = x
+        .iter()
+        .map(|x_n| if *x_n > 0 { q - *x_n } else { 0 })
+        .collect();
+
+    LabelModN::new(z_inner, q)
+}
+
 /// Cmul LabelModN with constant value
 pub fn cmul_label(x: &LabelModN, c: u64) -> LabelModN {
     let q = x.modulus;

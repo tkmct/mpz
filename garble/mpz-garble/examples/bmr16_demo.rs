@@ -1,7 +1,7 @@
 use futures::SinkExt;
 use mpz_circuits::{
     arithmetic::{
-        ops::{add, cmul, mul},
+        ops::{add, cmul, crt_sign, mul, sub},
         types::{ArithValue, CrtRepr, CrtValueType},
     },
     ArithmeticCircuit, ArithmeticCircuitBuilder, BuilderError,
@@ -150,6 +150,9 @@ enum Wire {
     Const(u32),
 }
 
+// TODO: put this in config file
+const ACCURACY: &str = "99.99%";
+
 /// Parse raw circuit to bmr16 arithmeti circuit representation
 /// specify private inputs from both parties
 fn parse_raw_circuit(
@@ -285,9 +288,10 @@ fn parse_raw_circuit(
                         used_vars.insert(gate.output, out.clone());
                     }
                     AGateType::ALt => {
-                        // call gadgets here
-                        // sub
-                        // sign
+                        let mut state = builder.state().borrow_mut();
+                        let z = sub(&mut state, &lhs, &rhs).unwrap();
+                        let out = crt_sign::<10>(&mut state, &z, ACCURACY).unwrap();
+                        used_vars.insert(gate.output, out.clone());
                     }
                     _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
                 }
