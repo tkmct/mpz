@@ -110,10 +110,10 @@ mod tests {
     #[test]
     fn test_add() {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
-        let y = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let y = builder.add_input::<u32>("y".into()).unwrap();
 
-        let z = add(&mut builder.state().borrow_mut(), &x, &y).unwrap();
+        let z = add(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
 
         let circ = builder.build().unwrap();
 
@@ -145,10 +145,10 @@ mod tests {
     #[test]
     fn test_mul() {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
-        let y = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let y = builder.add_input::<u32>("y".into()).unwrap();
 
-        let z = mul(&mut builder.state().borrow_mut(), &x, &y).unwrap();
+        let z = mul(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
 
         let circ = builder.build().unwrap();
         circ.print_gates();
@@ -183,10 +183,10 @@ mod tests {
     #[test]
     fn test_cmul() {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
         let c = 5;
 
-        let z = cmul(&mut builder.state().borrow_mut(), &x, c);
+        let z = cmul(&mut builder.state().borrow_mut(), &x.repr, c);
 
         let circ = builder.build().unwrap();
 
@@ -218,10 +218,10 @@ mod tests {
     #[test]
     fn test_conversion() {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
         let c = 5;
 
-        let z = cmul(&mut builder.state().borrow_mut(), &x, c);
+        let z = cmul(&mut builder.state().borrow_mut(), &x.repr, c);
 
         let circ = builder.build().unwrap();
 

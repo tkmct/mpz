@@ -72,28 +72,20 @@ impl RawCircuit {
         }
         None
     }
-
-    fn get_signal_node(&self, signal_id: u32) -> Option<Node> {
-        for node in &self.nodes {
-            if node.signals.contains(&signal_id) {
-                return Some(node.clone());
-            }
-        }
-        None
-    }
 }
 
 pub struct CircuitConfig {
-    pub input_a_vars: Vec<u32>,
-    pub input_b_vars: Vec<u32>,
+    /// list of ids which is from Alice
+    pub a_private_inputs: Vec<u32>,
+    pub b_private_inputs: Vec<u32>,
     pub outputs: Vec<u32>,
 }
 
 impl CircuitConfig {
     pub fn new() -> Self {
         Self {
-            input_a_vars: vec![],
-            input_b_vars: vec![],
+            a_private_inputs: vec![],
+            b_private_inputs: vec![],
             outputs: vec![],
         }
     }
@@ -132,21 +124,29 @@ fn parse_raw_circuit(
         let lhs_var = circ.get_node_by_id(gate.lh_input).unwrap();
         let rhs_var = circ.get_node_by_id(gate.rh_input).unwrap();
 
-        // putting into vec
+        let mut lhs_name = "";
+        let mut rhs_name = "";
+
+        // get name of the lhs_var and append to private input list
+        // if the same name presented in the predefined input_a_names/input_b_names
+        // TODO: better search the variable names and id.
         for name_v in lhs_var.names.iter() {
             for name_a in input_a_names.as_slice() {
                 if name_v.contains(name_a) {
-                    config.input_a_vars.push(lhs_var.id);
+                    config.a_private_inputs.push(lhs_var.id);
+                    lhs_name = name_a;
                 }
             }
             for name_b in input_b_names.as_slice() {
                 if name_v.contains(name_b) {
-                    config.input_b_vars.push(lhs_var.id);
+                    config.b_private_inputs.push(lhs_var.id);
+                    lhs_name = name_b;
                 }
             }
             for name_o in output_names.as_slice() {
                 if name_v.contains(name_o) {
                     config.outputs.push(lhs_var.id);
+                    lhs_name = name_o;
                 }
             }
         }
@@ -154,17 +154,20 @@ fn parse_raw_circuit(
         for name_v in rhs_var.names.as_slice() {
             for name_a in input_a_names.iter() {
                 if name_v.contains(name_a) {
-                    config.input_b_vars.push(rhs_var.id);
+                    config.a_private_inputs.push(rhs_var.id);
+                    rhs_name = name_a;
                 }
             }
             for name_b in input_b_names.as_slice() {
                 if name_v.contains(name_b) {
-                    config.input_b_vars.push(rhs_var.id);
+                    config.b_private_inputs.push(rhs_var.id);
+                    rhs_name = name_b;
                 }
             }
             for name_o in output_names.as_slice() {
                 if name_v.contains(name_o) {
                     config.outputs.push(rhs_var.id);
+                    rhs_name = name_o;
                 }
             }
         }
@@ -177,9 +180,10 @@ fn parse_raw_circuit(
             } else {
                 // check if const or not
                 println!("Input added: {:?}", gate.lh_input);
-                let v = builder.add_input::<u32>().unwrap();
-                used_vars.insert(gate.lh_input, v.clone());
-                v
+                // TODO: better way to handle name
+                let v = builder.add_input::<u32>(lhs_name.into()).unwrap();
+                used_vars.insert(gate.lh_input, v.repr.clone());
+                v.repr
             })
         };
 
@@ -190,10 +194,10 @@ fn parse_raw_circuit(
                 crt.clone()
             } else {
                 // check if const or not
-                let v = builder.add_input::<u32>().unwrap();
+                let v = builder.add_input::<u32>(rhs_name.into()).unwrap();
                 println!("Input added: {:?}", gate.rh_input);
-                used_vars.insert(gate.rh_input, v.clone());
-                v
+                used_vars.insert(gate.rh_input, v.repr.clone());
+                v.repr
             })
         };
 
@@ -275,6 +279,8 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     // dbg!(circ.clone());
 
     let (circ, config) = parse_raw_circuit(&raw_circ)?;
+    println!("Circuit: {:?}", circ);
+    // todo!();
     let circ = Arc::new(circ);
     println!("[MPZ circ] inputs: {:?}", circ.inputs().len());
     println!("[MPZ circ] outputs: {:#?}", circ.outputs());
@@ -319,6 +325,8 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
         };
 
         // list input configs
+        // WARNING: ordering of this vec doesn't specified.
+        // TODO: need to check if the input of the arithmetic circuit corresponds to intended input variables.
         let input_configs = vec![
             ArithValueIdConfig::Private {
                 id: ValueId::new("a_0"),

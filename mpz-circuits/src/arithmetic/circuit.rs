@@ -6,6 +6,8 @@ use crate::arithmetic::{
     utils::{convert_crts_to_values, convert_values_to_crts},
 };
 
+use super::types::CircInput;
+
 /// An error that occur when evaluating a circuit.
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[allow(missing_docs)]
@@ -27,7 +29,7 @@ pub enum ArithCircuitError {
 /// Which handles N wire crt representation.
 #[derive(Debug, Clone)]
 pub struct ArithmeticCircuit {
-    pub(crate) inputs: Vec<CrtRepr>,
+    pub(crate) inputs: Vec<CircInput>,
     pub(crate) outputs: Vec<CrtRepr>,
     pub(crate) gates: Vec<ArithGate>,
     pub(crate) feed_count: usize,
@@ -65,7 +67,7 @@ impl ArithmeticCircuit {
     }
 
     /// Returns a reference to the inputs of the circuit.
-    pub fn inputs(&self) -> &[CrtRepr] {
+    pub fn inputs(&self) -> &[CircInput] {
         &self.inputs
     }
 
@@ -120,10 +122,15 @@ impl ArithmeticCircuit {
         }
 
         let mut feeds: Vec<Option<u16>> = vec![None; self.feed_count()];
+        let input_reprs = self
+            .inputs()
+            .iter()
+            .map(|i| i.repr.clone())
+            .collect::<Vec<_>>();
 
         // Convert value to crt representation and add inputs in feeds.
-        let actual_values = convert_values_to_crts(self.inputs(), values)?;
-        for (repr, val) in self.inputs().iter().zip(actual_values.iter()) {
+        let actual_values = convert_values_to_crts(&input_reprs, values)?;
+        for (repr, val) in input_reprs.iter().zip(actual_values.iter()) {
             for (i, feed) in repr.iter().enumerate() {
                 feeds[feed.id()] = Some(val[i]);
             }
@@ -179,13 +186,13 @@ mod tests {
         // calc: a*b + 3*a
         let builder = ArithmeticCircuitBuilder::new();
 
-        let a = builder.add_input::<u32>().unwrap();
-        let b = builder.add_input::<u32>().unwrap();
+        let a = builder.add_input::<u32>("a".into()).unwrap();
+        let b = builder.add_input::<u32>("b".into()).unwrap();
         let out;
         {
             let mut state = builder.state().borrow_mut();
-            let c = mul(&mut state, &a, &b).unwrap();
-            let d = cmul(&mut state, &a, 3);
+            let c = mul(&mut state, &a.repr, &b.repr).unwrap();
+            let d = cmul(&mut state, &a.repr, 3);
             out = add(&mut state, &c, &d).unwrap();
         }
 
@@ -200,9 +207,9 @@ mod tests {
     fn test_evaluate_proj() {
         let builder = ArithmeticCircuitBuilder::new();
 
-        let x = builder.add_input::<bool>().unwrap();
+        let x = builder.add_input::<bool>("x".into()).unwrap();
         let tt: Vec<u16> = vec![1, 2];
-        let node = x.iter().next().unwrap();
+        let node = x.repr.iter().next().unwrap();
 
         let out_node = builder.state().borrow_mut().add_proj_gate(node, tt);
         let out_rep = bool::new_crt_repr(&[out_node]).unwrap();

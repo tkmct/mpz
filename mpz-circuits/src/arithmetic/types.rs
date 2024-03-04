@@ -90,9 +90,10 @@ impl From<&ArithNode<Sink>> for ArithNode<Feed> {
 
 /// Crt representation type.
 #[derive(Debug, Clone, Eq, PartialEq)]
-#[allow(missing_docs)]
 pub enum CrtRepr {
+    /// Boolean type of CRT representation. represented with 1 wire which describe 0/1.
     Bool(CrtValue<1>),
+    /// U32 type of CRT representation. u32 can be represented using at least first 10 primes with CRT.
     U32(CrtValue<10>),
 }
 
@@ -255,6 +256,23 @@ impl ArithValue {
             Self::Bool(_) => 1,
             Self::U32(_) => 10,
         }
+    }
+}
+
+/// Circuit input type which holds
+/// Crt representation and name
+#[derive(Debug, Clone, PartialEq)]
+pub struct CircInput {
+    /// Name of the input
+    pub name: String,
+    /// Representation of the input
+    pub repr: CrtRepr,
+}
+
+impl CircInput {
+    /// Create new input instance
+    pub fn new(name: String, repr: CrtRepr) -> Self {
+        Self { name, repr }
     }
 }
 
