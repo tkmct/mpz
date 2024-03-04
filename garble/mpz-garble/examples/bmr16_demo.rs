@@ -150,109 +150,103 @@ enum Wire {
     Const(u32),
 }
 
+/// Parse raw circuit to bmr16 arithmeti circuit representation
+/// specify private inputs from both parties
 fn parse_raw_circuit(
     raw_circ: &RawCircuit,
+    private_inputs_from_a: &[&str],
+    private_inputs_from_b: &[&str],
+    outputs: &[&str],
 ) -> Result<(ArithmeticCircuit, CircuitConfig), BuilderError> {
-    let circ = raw_circ.clone();
     let mut config = CircuitConfig::new();
     let builder = ArithmeticCircuitBuilder::new();
     // take each gate and append in the builder
     // mark input wire
     let mut used_vars = HashMap::<u32, CrtRepr>::new();
 
-    // TODO: load output from config file?
-    // for now, use output of last gate as an output of a circuit.
+    for gate in raw_circ.gates.iter() {
+        let lhs_var = raw_circ.get_node_by_id(gate.lh_input).unwrap();
+        let rhs_var = raw_circ.get_node_by_id(gate.rh_input).unwrap();
+        let out_var = raw_circ.get_node_by_id(gate.output).unwrap();
 
-    // controlling inputs/outputs here
-    // Define which variables are from which party.
-    // loaded from config file in the future
-    let input_a_names = vec!["0.input_A", "0.w0", "0.b0", "0.w1", "0.b1"];
-    let input_b_names = vec!["0.input_B"];
-    let output_names = vec!["0.ip"];
-
-    let mut output = None;
-    let mut o = 0;
-
-    for gate in circ.gates.iter() {
         println!("Gate: {:?}", gate);
-        let lhs_var = circ.get_node_by_id(gate.lh_input).unwrap();
-        let rhs_var = circ.get_node_by_id(gate.rh_input).unwrap();
-        let out_var = circ.get_node_by_id(gate.output).unwrap();
+        // println!("LHS Node: {:?}", lhs_var);
+        // println!("RHS Node: {:?}", rhs_var);
+        // println!("OUT Node: {:?}", out_var);
 
-        println!("LHS Node: {:?}", lhs_var);
-        println!("RHS Node: {:?}", rhs_var);
-        println!("OUT Node: {:?}", out_var);
-
-        let mut lhs_name = "";
-        let mut rhs_name = "";
-
-        // get name of the lhs_var and append to private input list
-        // if the same name presented in the predefined input_a_names/input_b_names
-        // TODO: better search the variable names and id.
-        for name_v in lhs_var.names.iter() {
-            for name_a in input_a_names.as_slice() {
-                if name_v.contains(name_a) {
-                    println!("name_a, name_v: {:?} {:?}", name_a, name_v);
+        let lhs_name = lhs_var
+            .names
+            .into_iter()
+            .find(|name_v| {
+                if private_inputs_from_a
+                    .iter()
+                    .any(|&name_a| name_v.contains(name_a))
+                {
                     config.a_private_inputs.push((name_v.into(), lhs_var.id));
-                    lhs_name = name_v;
+                    return true;
                 }
-            }
-            for name_b in input_b_names.as_slice() {
-                if name_v.contains(name_b) {
-                    println!("name_b, name_v: {:?} {:?}", name_b, name_v);
+                if private_inputs_from_b
+                    .iter()
+                    .any(|&name_b| name_v.contains(name_b))
+                {
                     config.b_private_inputs.push((name_v.into(), lhs_var.id));
-                    lhs_name = name_v;
+                    return true;
                 }
-            }
-        }
+                false
+            })
+            .unwrap_or("".into());
 
-        for name_v in rhs_var.names.as_slice() {
-            for name_a in input_a_names.as_slice() {
-                if name_v.contains(name_a) {
+        let rhs_name = rhs_var
+            .names
+            .into_iter()
+            .find(|name_v| {
+                if private_inputs_from_a
+                    .iter()
+                    .any(|&name_a| name_v.contains(name_a))
+                {
                     config.a_private_inputs.push((name_v.into(), rhs_var.id));
-                    rhs_name = name_v;
+                    return true;
                 }
-            }
-            for name_b in input_b_names.as_slice() {
-                if name_v.contains(name_b) {
+                if private_inputs_from_b
+                    .iter()
+                    .any(|&name_b| name_v.contains(name_b))
+                {
                     config.b_private_inputs.push((name_v.into(), rhs_var.id));
-                    rhs_name = name_v;
+                    return true;
                 }
-            }
-        }
+                false
+            })
+            .unwrap_or("".into());
 
         for name_v in out_var.names.as_slice() {
-            for name_o in output_names.as_slice() {
-                if name_v.contains(name_o) {
-                    config.outputs.push((name_v.into(), out_var.id));
-                }
+            if outputs.iter().any(|&name_o| name_v.contains(name_o)) {
+                config.outputs.push((name_v.into(), out_var.id));
             }
         }
 
+        // FIXME: memoize vars outside the lhs initializer
         let lhs = if lhs_var.is_const {
             Wire::Const(lhs_var.const_value)
         } else {
             Wire::Var(if let Some(crt) = used_vars.get(&gate.lh_input) {
                 crt.clone()
             } else {
-                // check if const or not
                 println!("Input added lh: {:?} {:?}", lhs_name, gate.lh_input);
-                // TODO: better way to handle name
-                let v = builder.add_input::<u32>(lhs_name.into()).unwrap();
+                let v = builder.add_input::<u32>(lhs_name).unwrap();
                 used_vars.insert(gate.lh_input, v.repr.clone());
                 v.repr
             })
         };
 
+        // FIXME: memoize vars outside the lhs initializer
         let rhs = if rhs_var.is_const {
             Wire::Const(rhs_var.const_value)
         } else {
             Wire::Var(if let Some(crt) = used_vars.get(&gate.rh_input) {
                 crt.clone()
             } else {
-                // check if const or not
-                let v = builder.add_input::<u32>(rhs_name.into()).unwrap();
                 println!("Input added rh: {:?} {:?}", rhs_name, gate.rh_input);
+                let v = builder.add_input::<u32>(rhs_name).unwrap();
                 used_vars.insert(gate.rh_input, v.repr.clone());
                 v.repr
             })
@@ -262,22 +256,15 @@ fn parse_raw_circuit(
             (Wire::Const(c), Wire::Var(v)) | (Wire::Var(v), Wire::Const(c)) => {
                 match gate.gate_type {
                     AGateType::AMul => {
-                        // add cmul gate.
                         let mut state = builder.state().borrow_mut();
                         let out = cmul(&mut state, &v, c);
                         used_vars.insert(gate.output, out.clone());
-
-                        o = gate.output;
-                        output = Some(out);
                     }
                     AGateType::AAdd => {
-                        // add cmul gate.
                         let mut state = builder.state().borrow_mut();
+                        // FIXME: this should be add gate?
                         let out = cmul(&mut state, &v, c);
                         used_vars.insert(gate.output, out.clone());
-
-                        o = gate.output;
-                        output = Some(out);
                     }
 
                     _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
@@ -286,24 +273,16 @@ fn parse_raw_circuit(
             (Wire::Var(lhs), Wire::Var(rhs)) => {
                 match gate.gate_type {
                     AGateType::AAdd => {
-                        // add add gate to builder
                         // check if crt repr exists in the used_vars
                         // if not, create new feed and put in the map
                         let mut state = builder.state().borrow_mut();
                         let out = add(&mut state, &lhs, &rhs).unwrap();
                         used_vars.insert(gate.output, out.clone());
-
-                        o = gate.output;
-                        output = Some(out);
                     }
                     AGateType::AMul => {
-                        // add mul gate or cmul gate
                         let mut state = builder.state().borrow_mut();
                         let out = mul(&mut state, &lhs, &rhs).unwrap();
                         used_vars.insert(gate.output, out.clone());
-
-                        o = gate.output;
-                        output = Some(out);
                     }
                     AGateType::ALt => {
                         // call gadgets here
@@ -318,13 +297,12 @@ fn parse_raw_circuit(
             }
         };
     }
-
-    // add output
-    if output.is_none() {
-        panic!("Output is not defined");
+    for out in config.outputs.iter() {
+        if let Some(crt) = used_vars.get(&out.1) {
+            builder.add_output(crt);
+        }
     }
-    builder.add_output(&output.unwrap());
-    builder.build().and_then(|circ| Ok((circ, config)))
+    builder.build().map(|circ| (circ, config))
 }
 
 #[tokio::main]
@@ -333,7 +311,12 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     let raw = fs::read_to_string("./examples/circ.json")?;
     let raw_circ: RawCircuit = serde_json::from_str(&raw)?;
 
-    let (circ, config) = parse_raw_circuit(&raw_circ)?;
+    let (circ, config) = parse_raw_circuit(
+        &raw_circ,
+        &vec!["0.input_A", "0.w0", "0.b0", "0.w1", "0.b1"],
+        &vec!["0.input_B"],
+        &vec!["0.ip"],
+    )?;
     println!("Config: {:?}", config);
     println!(
         "Circuit inputs: {:?}",
@@ -342,7 +325,6 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             .map(|i| i.name.clone())
             .collect::<Vec<_>>()
     );
-    // todo!();
     let circ = Arc::new(circ);
     println!("[MPZ circ] inputs: {:?}", circ.inputs().len());
     println!("[MPZ circ] outputs: {:#?}", circ.outputs());
