@@ -110,10 +110,10 @@ mod tests {
     #[test]
     fn test_add() {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
-        let y = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let y = builder.add_input::<u32>("y".into()).unwrap();
 
-        let z = add(&mut builder.state().borrow_mut(), &x, &y).unwrap();
+        let z = add(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
 
         let circ = builder.build().unwrap();
 
@@ -145,10 +145,10 @@ mod tests {
     #[test]
     fn test_mul() {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
-        let y = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let y = builder.add_input::<u32>("y".into()).unwrap();
 
-        let z = mul(&mut builder.state().borrow_mut(), &x, &y).unwrap();
+        let z = mul(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
 
         let circ = builder.build().unwrap();
         circ.print_gates();
@@ -183,10 +183,45 @@ mod tests {
     #[test]
     fn test_cmul() {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
         let c = 5;
 
-        let z = cmul(&mut builder.state().borrow_mut(), &x, c);
+        let z = cmul(&mut builder.state().borrow_mut(), &x.repr, c);
+
+        let circ = builder.build().unwrap();
+
+        // check z has correct CrtRepr
+        assert_eq!(
+            z,
+            CrtRepr::U32(CrtValue::new(std::array::from_fn(|i| {
+                ArithNode::<Feed>::new(10 + i, PRIMES[i])
+            })))
+        );
+
+        assert_eq!(circ.feed_count(), 20);
+        assert_eq!(circ.cmul_count(), 10);
+
+        // check if appropriate gates are added to state.
+        let gates = circ.gates();
+        for (i, (gate, p)) in gates.iter().zip(PRIMES).enumerate() {
+            assert_eq!(
+                *gate,
+                ArithGate::Cmul {
+                    x: ArithNode::<Sink>::new(i, p),
+                    c,
+                    z: ArithNode::<Feed>::new(i + 10, p),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_conversion() {
+        let builder = ArithmeticCircuitBuilder::default();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let c = 5;
+
+        let z = cmul(&mut builder.state().borrow_mut(), &x.repr, c);
 
         let circ = builder.build().unwrap();
 

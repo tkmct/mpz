@@ -34,13 +34,13 @@ mod tests {
     fn simple_circ() -> Arc<ArithmeticCircuit> {
         let builder = ArithmeticCircuitBuilder::new();
 
-        let a = builder.add_input::<u32>().unwrap();
-        let b = builder.add_input::<u32>().unwrap();
+        let a = builder.add_input::<u32>("a".into()).unwrap();
+        let b = builder.add_input::<u32>("b".into()).unwrap();
         let out;
         {
             let mut state = builder.state().borrow_mut();
-            let c = mul(&mut state, &a, &b).unwrap();
-            let d = cmul(&mut state, &a, 3);
+            let c = mul(&mut state, &a.repr, &b.repr).unwrap();
+            let d = cmul(&mut state, &a.repr, 3);
             out = add(&mut state, &c, &d).unwrap();
         }
 

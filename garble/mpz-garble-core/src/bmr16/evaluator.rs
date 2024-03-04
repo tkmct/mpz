@@ -60,15 +60,15 @@ impl<const N: usize> BMR16Evaluator<N> {
         let hasher = Some(Hasher::new());
         let mut active_labels: Vec<Option<LabelModN>> = vec![None; circ.feed_count()];
         for (encoded, input) in inputs.iter().zip(circ.inputs()) {
-            if encoded.len() != input.len() {
+            if encoded.len() != input.repr.len() {
                 return Err(TypeError::InvalidLength {
-                    expected: input.len(),
+                    expected: input.repr.len(),
                     actual: encoded.len(),
                 }
                 .into());
             }
 
-            for (label, node) in encoded.iter().zip(input.iter()) {
+            for (label, node) in encoded.iter().zip(input.repr.iter()) {
                 active_labels[node.id()] = Some(label.clone());
             }
         }

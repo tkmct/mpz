@@ -62,15 +62,15 @@ impl<const N: usize> BMR16Generator<N> {
         // Set zero label for every input feed
         let mut low_labels = vec![None; circ.feed_count()];
         for (encoded, input) in inputs.iter().zip(circ.inputs()) {
-            if encoded.len() != input.len() {
+            if encoded.len() != input.repr.len() {
                 return Err(TypeError::InvalidLength {
                     expected: encoded.len(),
-                    actual: input.len(),
+                    actual: input.repr.len(),
                 }
                 .into());
             }
 
-            for (label, node) in encoded.iter().zip(input.iter()) {
+            for (label, node) in encoded.iter().zip(input.repr.iter()) {
                 low_labels[node.id()] = Some(label.clone())
             }
         }
@@ -390,10 +390,10 @@ mod tests {
 
     fn adder_circ() -> ArithmeticCircuit {
         let builder = ArithmeticCircuitBuilder::default();
-        let x = builder.add_input::<u32>().unwrap();
-        let y = builder.add_input::<u32>().unwrap();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let y = builder.add_input::<u32>("y".into()).unwrap();
 
-        let z = add(&mut builder.state().borrow_mut(), &x, &y).unwrap();
+        let z = add(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
         builder.add_output(&z);
 
         builder.build().unwrap()
@@ -410,7 +410,7 @@ mod tests {
         let encoded_inputs = circ
             .inputs()
             .iter()
-            .map(|inp| encoder.encode_by_len(0, inp.len()))
+            .map(|inp| encoder.encode_by_len(0, inp.repr.len()))
             .collect();
 
         let mut gen =

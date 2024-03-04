@@ -1,0 +1,650 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_core'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-core"
+                ],
+                "filter": {
+                    "name": "mpz_core",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'aes'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=aes",
+                    "--package=mpz-core"
+                ],
+                "filter": {
+                    "name": "aes",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'ggm'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=ggm",
+                    "--package=mpz-core"
+                ],
+                "filter": {
+                    "name": "ggm",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'prg'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=prg",
+                    "--package=mpz-core"
+                ],
+                "filter": {
+                    "name": "prg",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'lpn'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=lpn",
+                    "--package=mpz-core"
+                ],
+                "filter": {
+                    "name": "lpn",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'clmul'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=clmul"
+                ],
+                "filter": {
+                    "name": "clmul",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'clmul'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=clmul",
+                    "--package=clmul"
+                ],
+                "filter": {
+                    "name": "clmul",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_garble'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-garble"
+                ],
+                "filter": {
+                    "name": "mpz_garble",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'bmr16_demo'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=bmr16_demo",
+                    "--package=mpz-garble"
+                ],
+                "filter": {
+                    "name": "bmr16_demo",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/garble/mpz-garble"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'bmr16_demo'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=bmr16_demo",
+                    "--package=mpz-garble"
+                ],
+                "filter": {
+                    "name": "bmr16_demo",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'offline-garble'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=offline-garble",
+                    "--package=mpz-garble"
+                ],
+                "filter": {
+                    "name": "offline-garble",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'semihonest'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=semihonest",
+                    "--package=mpz-garble"
+                ],
+                "filter": {
+                    "name": "semihonest",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'deap'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=deap",
+                    "--package=mpz-garble"
+                ],
+                "filter": {
+                    "name": "deap",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_circuits'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-circuits"
+                ],
+                "filter": {
+                    "name": "mpz_circuits",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'parse'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=parse",
+                    "--package=mpz-circuits"
+                ],
+                "filter": {
+                    "name": "parse",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'parse'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=parse",
+                    "--package=mpz-circuits"
+                ],
+                "filter": {
+                    "name": "parse",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'circuits'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=circuits",
+                    "--package=mpz-circuits"
+                ],
+                "filter": {
+                    "name": "circuits",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'circuits'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=circuits",
+                    "--package=mpz-circuits"
+                ],
+                "filter": {
+                    "name": "circuits",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'sha256'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=sha256",
+                    "--package=mpz-circuits"
+                ],
+                "filter": {
+                    "name": "sha256",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_garble_core'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-garble-core"
+                ],
+                "filter": {
+                    "name": "mpz_garble_core",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'garble'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=garble",
+                    "--package=mpz-garble-core"
+                ],
+                "filter": {
+                    "name": "garble",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'encoder'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=encoder",
+                    "--package=mpz-garble-core"
+                ],
+                "filter": {
+                    "name": "encoder",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_ot'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-ot"
+                ],
+                "filter": {
+                    "name": "mpz_ot",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'ot'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=ot",
+                    "--package=mpz-ot"
+                ],
+                "filter": {
+                    "name": "ot",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_ot_core'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-ot-core"
+                ],
+                "filter": {
+                    "name": "mpz_ot_core",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'ot'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=ot",
+                    "--package=mpz-ot-core"
+                ],
+                "filter": {
+                    "name": "ot",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'ot'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=ot",
+                    "--package=mpz-ot-core"
+                ],
+                "filter": {
+                    "name": "ot",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'ot'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=ot",
+                    "--package=mpz-ot-core"
+                ],
+                "filter": {
+                    "name": "ot",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'matrix-transpose'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=matrix-transpose"
+                ],
+                "filter": {
+                    "name": "matrix-transpose",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'transpose'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=transpose",
+                    "--package=matrix-transpose"
+                ],
+                "filter": {
+                    "name": "transpose",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_share_conversion'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-share-conversion"
+                ],
+                "filter": {
+                    "name": "mpz_share_conversion",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'converter'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=converter",
+                    "--package=mpz-share-conversion"
+                ],
+                "filter": {
+                    "name": "converter",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'mpz_share_conversion_core'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mpz-share-conversion-core"
+                ],
+                "filter": {
+                    "name": "mpz_share_conversion_core",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'inverse_gf2_128'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=inverse_gf2_128",
+                    "--package=mpz-share-conversion-core"
+                ],
+                "filter": {
+                    "name": "inverse_gf2_128",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

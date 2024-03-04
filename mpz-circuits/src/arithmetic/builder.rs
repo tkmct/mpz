@@ -5,7 +5,7 @@ use crate::{
     arithmetic::{
         circuit::ArithmeticCircuit,
         components::ArithGate,
-        types::{ArithNode, CrtLen, CrtRepr, ToCrtRepr, TypeError},
+        types::{ArithNode, CircInput, CrtLen, CrtRepr, ToCrtRepr, TypeError},
         utils::PRIMES,
     },
     BuilderError, Feed,
@@ -39,12 +39,16 @@ impl ArithmeticCircuitBuilder {
     }
 
     /// Add an input wire to circuit.
-    pub fn add_input<T: ToCrtRepr + CrtLen>(&self) -> Result<CrtRepr, ArithCircuitError> {
+    pub fn add_input<T: ToCrtRepr + CrtLen>(
+        &self,
+        name: String,
+    ) -> Result<CircInput, ArithCircuitError> {
         let mut state = self.state.borrow_mut();
         let repr = state.add_value::<T>()?;
-        state.inputs.push(repr.clone());
+        let input = CircInput::new(name, repr);
+        state.inputs.push(input.clone());
 
-        Ok(repr)
+        Ok(input)
     }
 
     /// Add an output wire to circuit.
@@ -76,7 +80,7 @@ impl ArithmeticCircuitBuilder {
 #[derive(Default)]
 pub struct ArithBuilderState {
     pub(crate) feed_id: usize,
-    inputs: Vec<CrtRepr>,
+    inputs: Vec<CircInput>,
     outputs: Vec<CrtRepr>,
     gates: Vec<ArithGate>,
     // constants: Vec<u32>,
@@ -198,11 +202,14 @@ mod tests {
         // test just add_input method
         let builder = ArithmeticCircuitBuilder::new();
 
-        let a = builder.add_input::<u32>();
+        let a = builder.add_input::<u32>("a".into());
         let expected: [ArithNode<Feed>; 10] =
             std::array::from_fn(|i| ArithNode::<Feed>::new(i, PRIMES[i]));
         assert!(a.is_ok());
-        assert_eq!(a.unwrap(), CrtRepr::U32(CrtValue::new(expected)));
+        assert_eq!(
+            a.unwrap(),
+            CircInput::new("a".into(), CrtRepr::U32(CrtValue::new(expected)))
+        );
 
         let circ = builder.build().unwrap();
         assert_eq!(circ.inputs().len(), 1);
