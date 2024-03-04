@@ -77,9 +77,9 @@ impl RawCircuit {
 #[derive(Debug)]
 pub struct CircuitConfig {
     /// list of ids which is from Alice
-    pub a_private_inputs: Vec<u32>,
-    pub b_private_inputs: Vec<u32>,
-    pub outputs: Vec<u32>,
+    pub a_private_inputs: Vec<(String, u32)>,
+    pub b_private_inputs: Vec<(String, u32)>,
+    pub outputs: Vec<(String, u32)>,
 }
 
 impl CircuitConfig {
@@ -89,6 +89,59 @@ impl CircuitConfig {
             b_private_inputs: vec![],
             outputs: vec![],
         }
+    }
+
+    pub fn gen_a_input_config(&self) -> Vec<ArithValueIdConfig> {
+        let mut config = vec![];
+        for a_priv in self.a_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&a_priv.0),
+                ty: CrtValueType::U32,
+                value: Some(ArithValue::U32(10)),
+            })
+        }
+        for b_priv in self.b_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&b_priv.0),
+                ty: CrtValueType::U32,
+                value: None,
+            })
+        }
+        config
+    }
+
+    pub fn gen_b_input_config(&self) -> Vec<ArithValueIdConfig> {
+        let mut config = vec![];
+        for a_priv in self.a_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&a_priv.0),
+                ty: CrtValueType::U32,
+                value: None,
+            })
+        }
+        for b_priv in self.b_private_inputs.iter() {
+            config.push(ArithValueIdConfig::Private {
+                id: ValueId::new(&b_priv.0),
+                ty: CrtValueType::U32,
+                value: Some(ArithValue::U32(10)),
+            })
+        }
+        config
+    }
+
+    pub fn get_input_refs(&self) -> Vec<ValueRef> {
+        let mut refs = vec![];
+        for a_priv in self.a_private_inputs.iter() {
+            refs.push(ValueRef::Value {
+                id: ValueId::new(&a_priv.0),
+            })
+        }
+        for b_priv in self.b_private_inputs.iter() {
+            refs.push(ValueRef::Value {
+                id: ValueId::new(&b_priv.0),
+            })
+        }
+        refs
     }
 }
 
@@ -140,14 +193,14 @@ fn parse_raw_circuit(
             for name_a in input_a_names.as_slice() {
                 if name_v.contains(name_a) {
                     println!("name_a, name_v: {:?} {:?}", name_a, name_v);
-                    config.a_private_inputs.push(lhs_var.id);
+                    config.a_private_inputs.push((name_v.into(), lhs_var.id));
                     lhs_name = name_v;
                 }
             }
             for name_b in input_b_names.as_slice() {
                 if name_v.contains(name_b) {
                     println!("name_b, name_v: {:?} {:?}", name_b, name_v);
-                    config.b_private_inputs.push(lhs_var.id);
+                    config.b_private_inputs.push((name_v.into(), lhs_var.id));
                     lhs_name = name_v;
                 }
             }
@@ -156,13 +209,13 @@ fn parse_raw_circuit(
         for name_v in rhs_var.names.as_slice() {
             for name_a in input_a_names.as_slice() {
                 if name_v.contains(name_a) {
-                    config.a_private_inputs.push(rhs_var.id);
+                    config.a_private_inputs.push((name_v.into(), rhs_var.id));
                     rhs_name = name_v;
                 }
             }
             for name_b in input_b_names.as_slice() {
                 if name_v.contains(name_b) {
-                    config.b_private_inputs.push(rhs_var.id);
+                    config.b_private_inputs.push((name_v.into(), rhs_var.id));
                     rhs_name = name_v;
                 }
             }
@@ -171,7 +224,7 @@ fn parse_raw_circuit(
         for name_v in out_var.names.as_slice() {
             for name_o in output_names.as_slice() {
                 if name_v.contains(name_o) {
-                    config.outputs.push(out_var.id);
+                    config.outputs.push((name_v.into(), out_var.id));
                 }
             }
         }
@@ -289,6 +342,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             .map(|i| i.name.clone())
             .collect::<Vec<_>>()
     );
+    // todo!();
     let circ = Arc::new(circ);
     println!("[MPZ circ] inputs: {:?}", circ.inputs().len());
     println!("[MPZ circ] outputs: {:#?}", circ.outputs());
@@ -309,73 +363,20 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
 
     let generator_fut = {
         // println!("[GEN]-----------start generator--------------");
-        let a_0 = ValueRef::Value {
-            id: ValueId::new("a_0"),
-        };
-        let a_1 = ValueRef::Value {
-            id: ValueId::new("a_1"),
-        };
-        let a_2 = ValueRef::Value {
-            id: ValueId::new("a_2"),
-        };
-        let b_0 = ValueRef::Value {
-            id: ValueId::new("b_0"),
-        };
-        let b_1 = ValueRef::Value {
-            id: ValueId::new("b_1"),
-        };
-        let b_2 = ValueRef::Value {
-            id: ValueId::new("b_2"),
-        };
-
         let out_ref = ValueRef::Value {
             id: ValueId::new("output"),
         };
 
-        // list input configs
-        // WARNING: ordering of this vec doesn't specified.
         // TODO: need to check if the input of the arithmetic circuit corresponds to intended input variables.
-        let input_configs = vec![
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_0"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_1"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_2"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_0"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_1"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_2"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-        ];
-
+        let input_config = config.gen_a_input_config();
+        let input_refs = config.get_input_refs();
         let circ = circ.clone();
 
-        // prepare input configs for a, b
         async move {
             generator
                 .setup_inputs(
                     "test_gc",
-                    &input_configs,
+                    &input_config,
                     &mut generator_channel,
                     &generator_ot_send,
                 )
@@ -389,7 +390,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             let _encoded_outputs = generator
                 .generate(
                     circ,
-                    &[a_0, a_1, a_2, b_0, b_1, b_2],
+                    &input_refs,
                     &[out_ref.clone()],
                     &mut generator_channel,
                 )
@@ -404,71 +405,19 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
 
     let evaluator_fut = {
         println!("[EV]-----------start evaluator--------------");
-        // let (_sink, mut stream) = evaluator_channel.split();
-        let a_0 = ValueRef::Value {
-            id: ValueId::new("a_0"),
-        };
-        let a_1 = ValueRef::Value {
-            id: ValueId::new("a_1"),
-        };
-        let a_2 = ValueRef::Value {
-            id: ValueId::new("a_2"),
-        };
-        let b_0 = ValueRef::Value {
-            id: ValueId::new("b_0"),
-        };
-        let b_1 = ValueRef::Value {
-            id: ValueId::new("b_1"),
-        };
-        let b_2 = ValueRef::Value {
-            id: ValueId::new("b_2"),
-        };
-
         let out_ref = ValueRef::Value {
             id: ValueId::new("output"),
         };
 
-        // list input configs
-        let input_configs = vec![
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_0"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_1"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("a_2"),
-                ty: CrtValueType::U32,
-                value: None,
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_0"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_1"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-            ArithValueIdConfig::Private {
-                id: ValueId::new("b_2"),
-                ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
-            },
-        ];
-
+        let input_config = config.gen_b_input_config();
+        let input_refs = config.get_input_refs();
         println!("[EV] async move");
         async move {
             println!("[EV] setup inputs start");
             evaluator
                 .setup_inputs(
                     "test_gc",
-                    &input_configs,
+                    &input_config,
                     &mut evaluator_channel,
                     &evaluator_ot_recv,
                 )
@@ -480,7 +429,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             let _encoded_outputs = evaluator
                 .evaluate(
                     circ.clone(),
-                    &[a_0, a_1, a_2, b_0, b_1, b_2],
+                    &input_refs,
                     &[out_ref.clone()],
                     &mut evaluator_channel,
                 )
