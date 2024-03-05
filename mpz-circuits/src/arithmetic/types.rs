@@ -267,6 +267,7 @@ impl ArithValue {
 }
 
 /// Mixed radix value
+#[derive(Debug, Clone, PartialEq)]
 pub struct MixedRadixValue(Vec<ArithNode<Feed>>);
 
 impl MixedRadixValue {
