@@ -1,7 +1,7 @@
 use futures::SinkExt;
 use mpz_circuits::{
     arithmetic::{
-        ops::{add, cmul, mul},
+        ops::{add, cmul, crt_sign, mul, sub},
         types::{ArithValue, CrtRepr, CrtValueType},
     },
     ArithmeticCircuit, ArithmeticCircuitBuilder, BuilderError,
@@ -150,6 +150,9 @@ enum Wire {
     Const(u32),
 }
 
+// TODO: put this in config file
+const ACCURACY: &str = "99.99%";
+
 /// Parse raw circuit to bmr16 arithmeti circuit representation
 /// specify private inputs from both parties
 fn parse_raw_circuit(
@@ -285,9 +288,10 @@ fn parse_raw_circuit(
                         used_vars.insert(gate.output, out.clone());
                     }
                     AGateType::ALt => {
-                        // call gadgets here
-                        // sub
-                        // sign
+                        let mut state = builder.state().borrow_mut();
+                        let z = sub(&mut state, &lhs, &rhs).unwrap();
+                        let out = crt_sign::<10>(&mut state, &z, ACCURACY).unwrap();
+                        used_vars.insert(gate.output, out.clone());
                     }
                     _ => panic!("This gate type not supported yet. {:?}", gate.gate_type),
                 }
@@ -332,16 +336,12 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     let (mut generator_channel, mut evaluator_channel) = MemoryDuplex::<GarbleMessage>::new();
     let (generator_ot_send, evaluator_ot_recv) = mock_ot_shared_pair();
     // setup generator and evaluator
-    let gen_config = BMR16GeneratorConfig {
-        encoding_commitments: false,
-        batch_size: 1024,
-        num_wires: 10,
-    };
+    let gen_config = BMR16GeneratorConfig::new(false, 1024, 10);
     let seed = [0; 32];
-    let generator = BMR16Generator::<10>::new(gen_config, seed);
+    let generator = BMR16Generator::new(gen_config, seed);
 
-    let ev_config = BMR16EvaluatorConfig { batch_size: 1024 };
-    let evaluator = BMR16Evaluator::<10>::new(ev_config);
+    let ev_config = BMR16EvaluatorConfig::new(1024);
+    let evaluator = BMR16Evaluator::new(ev_config);
 
     let generator_fut = {
         // println!("[GEN]-----------start generator--------------");
@@ -350,6 +350,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
         };
 
         // TODO: need to check if the input of the arithmetic circuit corresponds to intended input variables.
+        // TODO: load actual data from the model file and pass
         let input_config = config.gen_a_input_config();
         let input_refs = config.get_input_refs();
         let circ = circ.clone();

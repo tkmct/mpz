@@ -60,21 +60,27 @@ pub enum EvaluatorError {
 }
 
 /// Config struct for BMR16 evaluator
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, Builder, Default)]
 pub struct BMR16EvaluatorConfig {
     /// The number of encrypted gates to evaluate per batch.
-    #[builder(default = "1024")]
     pub batch_size: usize,
 }
 
-//// A garbled circuit evaluator.
+impl BMR16EvaluatorConfig {
+    /// Create a new config instance.
+    pub fn new(batch_size: usize) -> Self {
+        Self { batch_size }
+    }
+}
+
+/// A garbled circuit evaluator.
 #[allow(missing_docs)]
-pub struct BMR16Evaluator<const N: usize> {
+pub struct BMR16Evaluator {
     config: BMR16EvaluatorConfig,
     state: Mutex<State>,
 }
 
-impl<const N: usize> BMR16Evaluator<N> {
+impl BMR16Evaluator {
     /// Create new BMR16 evaluator instance
     pub fn new(config: BMR16EvaluatorConfig) -> Self {
         Self {
@@ -298,7 +304,7 @@ impl<const N: usize> BMR16Evaluator<N> {
                 .collect::<Result<Vec<_>, _>>()?
         };
 
-        let mut ev = EvaluatorCore::<N>::new(circ.clone(), encoded_inputs)?;
+        let mut ev = EvaluatorCore::new(circ.clone(), encoded_inputs)?;
         println!("[EV] process encrypted gates {}", !ev.is_complete());
         while !ev.is_complete() {
             println!("[EV] Waiting for incoming message...");

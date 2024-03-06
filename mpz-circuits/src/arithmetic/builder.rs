@@ -1,5 +1,6 @@
 //! Arithmetic circuit builder module.
 use std::cell::RefCell;
+use std::collections::HashSet;
 
 use crate::{
     arithmetic::{
@@ -60,9 +61,14 @@ impl ArithmeticCircuitBuilder {
     /// Add proj gate
     // TODO: maybe we don't need builder state. just put everything under builder
     // TODO: should return Result?
-    pub fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<u16>) -> ArithNode<Feed> {
+    pub fn add_proj_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        q: u16,
+        tt: Vec<u16>,
+    ) -> Result<ArithNode<Feed>, ArithCircuitError> {
         let mut state = self.state.borrow_mut();
-        state.add_proj_gate(x, tt)
+        state.add_proj_gate(x, q, tt)
     }
 
     /// Add add gate wrapper
@@ -88,12 +94,16 @@ pub struct ArithBuilderState {
     mul_count: usize,
     cmul_count: usize,
     proj_count: usize,
+
+    // Moduli numbers used in the circuit
+    moduli: HashSet<u16>,
 }
 
 impl ArithBuilderState {
     pub(crate) fn add_feed(&mut self, modulus: u16) -> ArithNode<Feed> {
         let node = ArithNode::<Feed>::new(self.feed_id, modulus);
         self.feed_id += 1;
+        self.moduli.insert(modulus);
         node
     }
 
@@ -116,6 +126,30 @@ impl ArithBuilderState {
         let out = self.add_feed(x.modulus());
 
         let gate = ArithGate::Add {
+            x: x.into(),
+            y: y.into(),
+            z: out,
+        };
+        self.add_count += 1;
+        self.gates.push(gate);
+
+        Ok(out)
+    }
+
+    /// Add ADD gate to a circuit.
+    pub(crate) fn add_sub_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        y: &ArithNode<Feed>,
+    ) -> Result<ArithNode<Feed>, ArithCircuitError> {
+        // check lhs and rhs has same modulus
+        if x.modulus() != y.modulus() {
+            return Err(ArithCircuitError::UnequalModuli(x.modulus(), y.modulus()));
+        }
+
+        let out = self.add_feed(x.modulus());
+
+        let gate = ArithGate::Sub {
             x: x.into(),
             y: y.into(),
             z: out,
@@ -163,10 +197,15 @@ impl ArithBuilderState {
     }
 
     /// Add PROJ gate to a circuit
-    pub(crate) fn add_proj_gate(&mut self, x: &ArithNode<Feed>, tt: Vec<u16>) -> ArithNode<Feed> {
+    pub(crate) fn add_proj_gate(
+        &mut self,
+        x: &ArithNode<Feed>,
+        q: u16,
+        tt: Vec<u16>,
+    ) -> Result<ArithNode<Feed>, ArithCircuitError> {
         // check if the number of tt rows are equal to x's modulus
+        let out = self.add_feed(q);
 
-        let out = self.add_feed(x.modulus());
         let gate = ArithGate::Proj {
             x: x.into(),
             tt,
@@ -174,7 +213,8 @@ impl ArithBuilderState {
         };
         self.proj_count += 1;
         self.gates.push(gate);
-        out
+
+        Ok(out)
     }
 
     /// Builds a circuit.
@@ -188,6 +228,7 @@ impl ArithBuilderState {
             cmul_count: self.cmul_count,
             mul_count: self.mul_count,
             proj_count: self.proj_count,
+            moduli: self.moduli.into_iter().collect(),
         })
     }
 }

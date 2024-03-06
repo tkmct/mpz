@@ -29,8 +29,27 @@ pub(crate) fn is_same_crt_len(a: &CrtRepr, b: &CrtRepr) -> bool {
     discriminant(a) == discriminant(b)
 }
 
+/// Convert `x` into mixed radix form using the provided `radii`.
+pub(crate) fn as_mixed_radix(x: u128, radii: &[u16]) -> Vec<u16> {
+    let mut x = x;
+    radii
+        .iter()
+        .map(|&m| {
+            if x >= m as u128 {
+                let d = x % m as u128;
+                x = (x - d) / m as u128;
+                d as u16
+            } else {
+                let d = x as u16;
+                x = 0;
+                d
+            }
+        })
+        .collect()
+}
+
 /// Invert inp_a mod inp_b.
-fn inv(inp_a: i128, inp_b: i128) -> i128 {
+pub(crate) fn inv(inp_a: i128, inp_b: i128) -> i128 {
     let mut a = inp_a;
     let mut b = inp_b;
     let mut q;

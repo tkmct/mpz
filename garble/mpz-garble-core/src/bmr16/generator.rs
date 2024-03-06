@@ -1,5 +1,6 @@
 //! BMR16 generator implementation
-use crate::encoding::get_delta_by_modulus;
+use crate::encoding::negate_label;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use blake3::Hasher;
@@ -33,12 +34,12 @@ pub enum GeneratorError {
 }
 
 /// BMR16 generator
-pub struct BMR16Generator<const N: usize> {
+pub struct BMR16Generator {
     cipher: &'static FixedKeyAes,
     /// Circuit to genrate a garbled circuit for
     circ: Arc<ArithmeticCircuit>,
     /// Delta values to use while generating the circuit
-    deltas: [CrtDelta; N],
+    deltas: HashMap<u16, CrtDelta>,
     /// The 0 value labels for the garbled circuit
     low_labels: Vec<Option<LabelModN>>,
     /// Current position in the circuit
@@ -49,12 +50,12 @@ pub struct BMR16Generator<const N: usize> {
     hasher: Option<Hasher>,
 }
 
-impl<const N: usize> BMR16Generator<N> {
+impl BMR16Generator {
     /// Create bmr16 generator struct.
     /// encoding of the input labels are done outside.
     pub fn new(
         circ: Arc<ArithmeticCircuit>,
-        deltas: [CrtDelta; N],
+        deltas: HashMap<u16, CrtDelta>,
         inputs: Vec<EncodedCrtValue<crt_encoding_state::Full>>,
     ) -> Result<Self, GeneratorError> {
         let hasher = Some(Hasher::new());
@@ -129,7 +130,7 @@ impl<const N: usize> BMR16Generator<N> {
     }
 }
 
-impl<const N: usize> Iterator for BMR16Generator<N> {
+impl Iterator for BMR16Generator {
     // FIXME: encryted gate for arithmetic gate depends on the number of wire
     // How to represent set of wires?
     type Item = ArithEncryptedGate;
@@ -157,6 +158,24 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     // set zero label for z
                     low_labels[z.id()] = Some(add_label(&x_0, &y_0));
                 }
+                ArithGate::Sub { x, y, z } => {
+                    // zero labels for input x and y
+                    let x_0 = low_labels
+                        .get(x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+
+                    let y_0 = low_labels
+                        .get(y.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("zero label should be set.");
+                    // set zero label for z
+                    let neg_y_0 = negate_label(&y_0);
+                    low_labels[z.id()] = Some(add_label(&x_0, &neg_y_0));
+                }
+
                 ArithGate::Cmul { x, c, z } => {
                     // zero labels for input x
                     let x_0 = low_labels
@@ -197,10 +216,8 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     let q_x = node_x.modulus();
                     let q_y = node_y.modulus();
 
-                    let d_x =
-                        get_delta_by_modulus(&self.deltas, q_x).expect("deltas should be set.");
-                    let d_y =
-                        get_delta_by_modulus(&self.deltas, q_y).expect("deltas should be set.");
+                    let d_x = self.deltas.get(&q_x).expect("delta should be set");
+                    let d_y = self.deltas.get(&q_y).expect("deltas should be set.");
 
                     // prepare empty block array as gate encoding
                     let mut gate = vec![Block::new([0; 16]); q_x as usize + q_y as usize - 2];
@@ -311,12 +328,14 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
                     self.gid += 1;
 
                     let g = tweak(gate_num);
-                    // let d_in = self.deltas.get(&q_in).expect("delta should be set.");
-                    // let d_out = self.deltas.get(&q_out).expect("delta should be set");
-                    let d_in =
-                        get_delta_by_modulus(&self.deltas, q_in).expect("deltas should be set.");
-                    let d_out =
-                        get_delta_by_modulus(&self.deltas, q_out).expect("deltas should be set.");
+                    let d_in = self
+                        .deltas
+                        .get(&q_in)
+                        .expect(&format!("delta not set for {}", q_in));
+                    let d_out = self
+                        .deltas
+                        .get(&q_out)
+                        .expect(&format!("delta not set for {}", q_out));
 
                     // output zero-wire
                     // W_g^0 <- -H(g, W_{a_1}^0 - \tao\Delta_m) - \phi(-\tao)\Delta_n
@@ -383,7 +402,10 @@ impl<const N: usize> Iterator for BMR16Generator<N> {
 mod tests {
     use std::sync::Arc;
 
-    use mpz_circuits::{arithmetic::ops::add, ArithmeticCircuit, ArithmeticCircuitBuilder};
+    use mpz_circuits::{
+        arithmetic::{ops::add, utils::PRIMES},
+        ArithmeticCircuit, ArithmeticCircuitBuilder,
+    };
 
     use super::BMR16Generator;
     use crate::{encoding::ChaChaCrtEncoder, ArithEncryptedGate};
@@ -401,7 +423,7 @@ mod tests {
 
     #[test]
     fn test_bmr16_generator() {
-        let encoder = ChaChaCrtEncoder::new([0; 32]);
+        let encoder = ChaChaCrtEncoder::new([0; 32], &PRIMES[0..10]);
 
         let circ = adder_circ();
         let deltas = encoder.deltas();
@@ -413,8 +435,7 @@ mod tests {
             .map(|inp| encoder.encode_by_len(0, inp.repr.len()))
             .collect();
 
-        let mut gen =
-            BMR16Generator::<10>::new(Arc::new(circ), deltas.clone(), encoded_inputs).unwrap();
+        let mut gen = BMR16Generator::new(Arc::new(circ), deltas.clone(), encoded_inputs).unwrap();
         let enc_gates: Vec<ArithEncryptedGate> = gen.by_ref().collect();
 
         assert!(gen.is_complete());

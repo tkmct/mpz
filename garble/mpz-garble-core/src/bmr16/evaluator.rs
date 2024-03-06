@@ -6,8 +6,8 @@ use blake3::Hasher;
 use crate::{
     circuit::ArithEncryptedGate,
     encoding::{
-        add_label, cmul_label, crt_encoding_state, tweak, tweak2, DecodeError, EncodedCrtValue,
-        LabelModN,
+        add_label, cmul_label, crt_encoding_state, negate_label, tweak, tweak2, DecodeError,
+        EncodedCrtValue, LabelModN,
     },
 };
 
@@ -34,7 +34,7 @@ pub enum EvaluatorError {
 }
 
 /// BMR16 evaluator struct
-pub struct BMR16Evaluator<const N: usize> {
+pub struct BMR16Evaluator {
     cipher: &'static FixedKeyAes,
     /// Circuit to genrate a garbled circuit for
     circ: Arc<ArithmeticCircuit>,
@@ -50,7 +50,7 @@ pub struct BMR16Evaluator<const N: usize> {
     hasher: Option<Hasher>,
 }
 
-impl<const N: usize> BMR16Evaluator<N> {
+impl BMR16Evaluator {
     /// Construct new evaluator instance from circuit and inputs.
     /// Inputs should be encoded as active encoding using EncodedCrtValue.
     pub fn new(
@@ -150,6 +150,25 @@ impl<const N: usize> BMR16Evaluator<N> {
                         .expect("label should be initialized");
 
                     labels[node_z.id()] = Some(add_label(&x, &y));
+                }
+                ArithGate::Sub {
+                    x: node_x,
+                    y: node_y,
+                    z: node_z,
+                } => {
+                    let x = labels
+                        .get(node_x.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("label should be initialized");
+                    let y = labels
+                        .get(node_y.id())
+                        .expect("label index out of range")
+                        .clone()
+                        .expect("label should be initialized");
+
+                    let neg_y = negate_label(&y);
+                    labels[node_z.id()] = Some(add_label(&x, &neg_y));
                 }
                 ArithGate::Cmul {
                     x: node_x,

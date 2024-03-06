@@ -16,7 +16,7 @@ mod tests {
 
     use mpz_circuits::{
         arithmetic::{
-            ops::{add, cmul, mul},
+            ops::{crt_sign, mul, sub},
             types::{ArithValue, CrtValueType},
         },
         ArithmeticCircuit, ArithmeticCircuitBuilder,
@@ -30,18 +30,20 @@ mod tests {
         generator::{BMR16Generator, BMR16GeneratorConfig},
     };
 
-    // calculate a * 3 + a * b
+    // calculate  a * b < x
     fn simple_circ() -> Arc<ArithmeticCircuit> {
         let builder = ArithmeticCircuitBuilder::new();
 
         let a = builder.add_input::<u32>("a".into()).unwrap();
         let b = builder.add_input::<u32>("b".into()).unwrap();
+        let c = builder.add_input::<u32>("c".into()).unwrap();
         let out;
         {
             let mut state = builder.state().borrow_mut();
-            let c = mul(&mut state, &a.repr, &b.repr).unwrap();
-            let d = cmul(&mut state, &a.repr, 3);
-            out = add(&mut state, &c, &d).unwrap();
+            let d = mul(&mut state, &a.repr, &b.repr).unwrap();
+            // if a*b > x => 1, otherwise 0
+            let e = sub(&mut state, &d, &c.repr).unwrap();
+            out = crt_sign::<10>(&mut state, &e, "100%").unwrap();
         }
 
         builder.add_output(&out);
@@ -57,16 +59,13 @@ mod tests {
         let circ = simple_circ();
 
         // setup generator and evaluator
-        let gen_config = BMR16GeneratorConfig {
-            encoding_commitments: false,
-            batch_size: 1024,
-            num_wires: 10,
-        };
+        let gen_config =
+            BMR16GeneratorConfig::new_with_moduli_list(false, 1024, 10, circ.moduli().into());
         let seed = [0; 32];
-        let generator = BMR16Generator::<10>::new(gen_config, seed);
+        let generator = BMR16Generator::new(gen_config, seed);
 
         let ev_config = BMR16EvaluatorConfig { batch_size: 1024 };
-        let evaluator = BMR16Evaluator::<10>::new(ev_config);
+        let evaluator = BMR16Evaluator::new(ev_config);
 
         let generator_fut = {
             println!("[GEN]-----------start generator--------------");
@@ -76,6 +75,9 @@ mod tests {
             };
             let b_ref = ValueRef::Value {
                 id: ValueId::new("input/b"),
+            };
+            let c_ref = ValueRef::Value {
+                id: ValueId::new("input/c"),
             };
             let out_ref = ValueRef::Value {
                 id: ValueId::new("output"),
@@ -89,6 +91,11 @@ mod tests {
                 },
                 ArithValueIdConfig::Private {
                     id: ValueId::new("input/b"),
+                    ty: CrtValueType::U32,
+                    value: None,
+                },
+                ArithValueIdConfig::Private {
+                    id: ValueId::new("input/c"),
                     ty: CrtValueType::U32,
                     value: None,
                 },
@@ -115,7 +122,7 @@ mod tests {
                 let _encoded_outputs = generator
                     .generate(
                         circ,
-                        &[a_ref, b_ref],
+                        &[a_ref, b_ref, c_ref],
                         &[out_ref.clone()],
                         &mut generator_channel,
                     )
@@ -139,6 +146,9 @@ mod tests {
             let b_ref = ValueRef::Value {
                 id: ValueId::new("input/b"),
             };
+            let c_ref = ValueRef::Value {
+                id: ValueId::new("input/c"),
+            };
             let out_ref = ValueRef::Value {
                 id: ValueId::new("output"),
             };
@@ -154,6 +164,11 @@ mod tests {
                     id: ValueId::new("input/b"),
                     ty: CrtValueType::U32,
                     value: Some(ArithValue::U32(31)),
+                },
+                ArithValueIdConfig::Private {
+                    id: ValueId::new("input/c"),
+                    ty: CrtValueType::U32,
+                    value: Some(ArithValue::U32(320)),
                 },
             ];
 
@@ -175,7 +190,7 @@ mod tests {
                 let _encoded_outputs = evaluator
                     .evaluate(
                         circ.clone(),
-                        &[a_ref, b_ref],
+                        &[a_ref, b_ref, c_ref],
                         &[out_ref.clone()],
                         &mut evaluator_channel,
                     )
@@ -192,6 +207,6 @@ mod tests {
         let (_, evaluator_output) = tokio::join!(generator_fut, evaluator_fut);
         println!("Decoded evaluator output: {:?}", evaluator_output);
 
-        assert_eq!(evaluator_output.unwrap(), vec![ArithValue::U32(340)]);
+        assert_eq!(evaluator_output.unwrap(), vec![ArithValue::U32(1)]);
     }
 }

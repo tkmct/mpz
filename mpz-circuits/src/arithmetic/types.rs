@@ -114,6 +114,14 @@ impl CrtRepr {
             CrtRepr::U32(v) => Box::new(v.0.iter()),
         }
     }
+
+    /// Retuns a slice of moduli
+    pub fn moduli(&self) -> &[u16] {
+        match self {
+            CrtRepr::Bool(v) => v.moduli(),
+            CrtRepr::U32(v) => v.moduli(),
+        }
+    }
 }
 
 /// Trait for convertable to CrtRepr
@@ -190,7 +198,6 @@ impl<const N: usize> CrtValue<N> {
     }
 
     /// Returns the moduli array
-    #[allow(dead_code)]
     pub(crate) fn moduli(&self) -> &[u16; N] {
         // Unwrapping is safe because N is always less than NPRIMES.
         TryFrom::try_from(&PRIMES[..N]).unwrap()
@@ -256,6 +263,30 @@ impl ArithValue {
             Self::Bool(_) => 1,
             Self::U32(_) => 10,
         }
+    }
+}
+
+/// Mixed radix value
+#[derive(Debug, Clone, PartialEq)]
+pub struct MixedRadixValue(Vec<ArithNode<Feed>>);
+
+impl MixedRadixValue {
+    pub(crate) fn new(inner: Vec<ArithNode<Feed>>) -> Self {
+        Self(inner)
+    }
+
+    /// Returns the length of moduli array
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns the moduli array
+    pub(crate) fn moduli(&self) -> Vec<u16> {
+        self.0.iter().map(|i| i.modulus).collect::<Vec<_>>()
+    }
+
+    pub(crate) fn wires(&self) -> &[ArithNode<Feed>] {
+        &self.0
     }
 }
 
