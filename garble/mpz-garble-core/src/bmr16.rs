@@ -52,7 +52,7 @@ mod tests {
         let y = builder.add_input::<u32>("y".into()).unwrap();
 
         let z = sub(&mut builder.state().borrow_mut(), &x.repr, &y.repr).unwrap();
-        let out = crt_sign::<10>(&mut builder.state().borrow_mut(), &z, "99.99%").unwrap();
+        let out = crt_sign::<10>(&mut builder.state().borrow_mut(), &z, "100%").unwrap();
         builder.add_output(&out);
         builder.build().unwrap()
     }
@@ -223,7 +223,6 @@ mod tests {
         let circ = sign_circ();
         // TODO: get moduli used for the things
         let moduli = circ.moduli();
-        println!("moduli: {:?}", circ.moduli());
 
         let encoder = ChaChaCrtEncoder::new([0; 32], &moduli);
 
