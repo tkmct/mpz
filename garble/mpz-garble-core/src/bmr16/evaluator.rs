@@ -34,7 +34,7 @@ pub enum EvaluatorError {
 }
 
 /// BMR16 evaluator struct
-pub struct BMR16Evaluator<const N: usize> {
+pub struct BMR16Evaluator {
     cipher: &'static FixedKeyAes,
     /// Circuit to genrate a garbled circuit for
     circ: Arc<ArithmeticCircuit>,
@@ -50,7 +50,7 @@ pub struct BMR16Evaluator<const N: usize> {
     hasher: Option<Hasher>,
 }
 
-impl<const N: usize> BMR16Evaluator<N> {
+impl BMR16Evaluator {
     /// Construct new evaluator instance from circuit and inputs.
     /// Inputs should be encoded as active encoding using EncodedCrtValue.
     pub fn new(

@@ -1,4 +1,5 @@
 use bytemuck::cast;
+use std::collections::HashMap;
 
 use mpz_core::{
     aes::{FixedKeyAes, FIXED_KEY_AES},
@@ -10,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use mpz_circuits::arithmetic::{
     types::{ArithValue, CrtValueType},
-    utils::{convert_crt_to_value, digits_per_u128, get_index_of_prime, is_power_of_2, PRIMES},
+    utils::{convert_crt_to_value, digits_per_u128, is_power_of_2, PRIMES},
     TypeError,
 };
 
@@ -276,14 +277,18 @@ impl<S: LabelState> EncodedCrtValue<S> {
     }
 
     /// Returns decoding info of this value
-    pub fn decoding(&self, idx: usize, deltas: &[CrtDelta], cipher: &FixedKeyAes) -> CrtDecoding {
+    pub fn decoding(
+        &self,
+        idx: usize,
+        deltas: &HashMap<u16, CrtDelta>,
+        cipher: &FixedKeyAes,
+    ) -> CrtDecoding {
         let hashes = self
             .iter()
             .enumerate()
             .map(|(i, x)| {
                 let q = PRIMES[i];
-                let d =
-                    get_delta_by_modulus(deltas, q).expect("delta should be set for given prime");
+                let d = deltas.get(&q).expect("delta should be set for given prime");
 
                 (0..q)
                     .map(|k| {
@@ -305,16 +310,19 @@ impl EncodedCrtValue<state::Full> {
     ///
     /// # Arguments
     ///
+    /// - `deltas` - HashMap of delta stored for every modulus used in a circuit.
     /// - `values` - The actual values for individual modulus from which encoded crt value is created.
-    pub fn select(&self, deltas: &[CrtDelta], values: Vec<u16>) -> EncodedCrtValue<state::Active> {
+    pub fn select(
+        &self,
+        deltas: &HashMap<u16, CrtDelta>,
+        values: Vec<u16>,
+    ) -> EncodedCrtValue<state::Active> {
         let active_labels: Vec<LabelModN> = values
             .iter()
             .enumerate()
             .map(|(i, v)| {
                 let q = PRIMES[i];
-                let d =
-                    get_delta_by_modulus(deltas, q).expect("Delta should be set for given prime");
-
+                let d = deltas.get(&q).expect("delta should be set for given prime");
                 add_label(
                     // TODO: not use unwrap here
                     self.get_label(i).unwrap(),
@@ -383,23 +391,26 @@ impl<T: LabelState> std::fmt::Display for EncodedCrtValue<T> {
 }
 
 /// Chacha encoder for CRT representation
-pub struct ChaChaCrtEncoder<const N: usize> {
+pub struct ChaChaCrtEncoder {
     seed: [u8; 32],
-    deltas: [CrtDelta; N],
+    deltas: HashMap<u16, CrtDelta>,
 }
 
-impl<const N: usize> ChaChaCrtEncoder<N> {
+impl ChaChaCrtEncoder {
     /// Create new encoder for CRT labels with provided seed.
     /// * `seed` - seed value of encoder
-    /// * `num_wire` - maximum number of wires used in circuit
-    pub fn new(seed: [u8; 32]) -> Self {
+    /// * `moduli` - list of modulus number used in the circuit. this field is needed specifically
+    ///              because you can use arbitrary number for proj gate output/input.
+    pub fn new(seed: [u8; 32], moduli: &[u16]) -> Self {
         let mut rng = ChaCha20Rng::from_seed(seed);
 
         // Stream id u64::MAX is reserved to generate delta.
         // This way there is only ever 1 delta per seed
         rng.set_stream(DELTA_STREAM_ID);
-        let deltas: [CrtDelta; N] =
-            std::array::from_fn(|i| CrtDelta::random_delta(&mut rng, PRIMES[i]));
+        let mut deltas = HashMap::new();
+        for &m in moduli {
+            deltas.insert(m, CrtDelta::random_delta(&mut rng, m));
+        }
 
         Self { seed, deltas }
     }
@@ -422,8 +433,8 @@ impl<const N: usize> ChaChaCrtEncoder<N> {
         self.seed.to_vec()
     }
 
-    /// Returns list of deltas used in a circuit.
-    pub fn deltas(&self) -> &[CrtDelta; N] {
+    /// Returns hashmap of deltas used in a circuit.
+    pub fn deltas(&self) -> &HashMap<u16, CrtDelta> {
         &self.deltas
     }
 
@@ -495,21 +506,10 @@ pub(crate) fn output_tweak(i: usize, k: u16) -> Block {
 }
 
 pub(crate) fn tweak(i: usize) -> Block {
-    Block::from(cast::<u64, [u8; 16]>(i as u64))
+    Block::from(cast::<[u64; 2], [u8; 16]>([i as u64, 0]))
 }
 
 pub(crate) fn tweak2(i: u64, j: u64) -> Block {
     let a = [i, j];
     Block::new(cast::<[u64; 2], [u8; 16]>(a))
-}
-
-/// get delta corresponding to the modulus given.
-/// returns None if given value is not prime
-/// panic if the delta doesn't exist for given modulus value
-///
-/// * `deltas` - slice of delta values sorted by size of modulus
-/// * `q` - modulus to get delta
-pub fn get_delta_by_modulus(deltas: &[CrtDelta], q: u16) -> Option<CrtDelta> {
-    let idx = get_index_of_prime(q)?;
-    Some(deltas[idx].clone())
 }

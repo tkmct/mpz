@@ -12,7 +12,7 @@ use utils_aio::non_blocking_backend::{Backend, NonBlockingBackend};
 use mpz_circuits::{
     arithmetic::{
         types::{ArithValue, CrtValueType},
-        utils::convert_value_to_crt,
+        utils::{convert_value_to_crt, PRIMES},
     },
     ArithmeticCircuit,
 };
@@ -62,27 +62,60 @@ pub struct BMR16GeneratorConfig {
     pub batch_size: usize,
     /// Maximum number of wires used in a circuit for single value
     pub num_wires: usize,
+    /// list of modulus numbers used in the circuit.
+    pub moduli_list: Vec<u16>,
+}
+
+impl BMR16GeneratorConfig {
+    /// Create new config instance.
+    /// Moduli used in the circuit is implied by num_wires
+    pub fn new(encoding_commitments: bool, batch_size: usize, num_wires: usize) -> Self {
+        Self::new_with_moduli_list(
+            encoding_commitments,
+            batch_size,
+            num_wires,
+            PRIMES[0..num_wires].into(),
+        )
+    }
+
+    /// Create new config instance with moduli_list.
+    pub fn new_with_moduli_list(
+        encoding_commitments: bool,
+        batch_size: usize,
+        num_wires: usize,
+        moduli_list: Vec<u16>,
+    ) -> Self {
+        Self {
+            encoding_commitments,
+            batch_size,
+            num_wires,
+            moduli_list,
+        }
+    }
 }
 
 /// BMR16 generator struct
-pub struct BMR16Generator<const N: usize> {
+pub struct BMR16Generator {
     config: BMR16GeneratorConfig,
-    state: Mutex<State<N>>,
+    state: Mutex<State>,
     cipher: &'static FixedKeyAes,
 }
 
-impl<const N: usize> BMR16Generator<N> {
+impl BMR16Generator {
     /// create new generator instance
     pub fn new(config: BMR16GeneratorConfig, encoder_seed: [u8; 32]) -> Self {
         Self {
-            state: Mutex::new(State::new(ChaChaCrtEncoder::<N>::new(encoder_seed))),
+            state: Mutex::new(State::new(ChaChaCrtEncoder::new(
+                encoder_seed,
+                &config.moduli_list,
+            ))),
             config,
             cipher: &(FIXED_KEY_AES),
         }
     }
 
     /// Convenience method for grabbing a lock to the state.
-    fn state(&self) -> impl DerefMut<Target = State<N>> + '_ {
+    fn state(&self) -> impl DerefMut<Target = State> + '_ {
         self.state.lock().unwrap()
     }
 
@@ -238,7 +271,7 @@ impl<const N: usize> BMR16Generator<N> {
             })
             .collect::<Result<Vec<EncodedCrtValue<encoding_state::Full>>, _>>()?;
 
-        let mut gen = GeneratorCore::<N>::new(circ, state.encoder.deltas().clone(), inputs)?;
+        let mut gen = GeneratorCore::new(circ, state.encoder.deltas().clone(), inputs)?;
 
         let mut batch: Vec<_>;
         let batch_size = self.config.batch_size;
@@ -325,9 +358,9 @@ impl<const N: usize> BMR16Generator<N> {
     }
 }
 
-struct State<const N: usize> {
+struct State {
     // number of wire label
-    encoder: ChaChaCrtEncoder<N>,
+    encoder: ChaChaCrtEncoder,
     /// Encodings of values
     encoding_registry: CrtEncodingRegistry<encoding_state::Full>,
     /// The set of values that are currently active.
@@ -339,8 +372,8 @@ struct State<const N: usize> {
     active: HashSet<ValueId>,
 }
 
-impl<const N: usize> State<N> {
-    fn new(encoder: ChaChaCrtEncoder<N>) -> Self {
+impl State {
+    fn new(encoder: ChaChaCrtEncoder) -> Self {
         Self {
             encoder,
             encoding_registry: CrtEncodingRegistry::default(),

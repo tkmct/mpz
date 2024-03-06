@@ -336,16 +336,12 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     let (mut generator_channel, mut evaluator_channel) = MemoryDuplex::<GarbleMessage>::new();
     let (generator_ot_send, evaluator_ot_recv) = mock_ot_shared_pair();
     // setup generator and evaluator
-    let gen_config = BMR16GeneratorConfig {
-        encoding_commitments: false,
-        batch_size: 1024,
-        num_wires: 10,
-    };
+    let gen_config = BMR16GeneratorConfig::new(false, 1024, 10);
     let seed = [0; 32];
-    let generator = BMR16Generator::<10>::new(gen_config, seed);
+    let generator = BMR16Generator::new(gen_config, seed);
 
-    let ev_config = BMR16EvaluatorConfig { batch_size: 1024 };
-    let evaluator = BMR16Evaluator::<10>::new(ev_config);
+    let ev_config = BMR16EvaluatorConfig::new(1024);
+    let evaluator = BMR16Evaluator::new(ev_config);
 
     let generator_fut = {
         // println!("[GEN]-----------start generator--------------");
@@ -354,6 +350,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
         };
 
         // TODO: need to check if the input of the arithmetic circuit corresponds to intended input variables.
+        // TODO: load actual data from the model file and pass
         let input_config = config.gen_a_input_config();
         let input_refs = config.get_input_refs();
         let circ = circ.clone();

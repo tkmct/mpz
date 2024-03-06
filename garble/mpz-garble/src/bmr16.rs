@@ -58,16 +58,12 @@ mod tests {
         let circ = simple_circ();
 
         // setup generator and evaluator
-        let gen_config = BMR16GeneratorConfig {
-            encoding_commitments: false,
-            batch_size: 1024,
-            num_wires: 10,
-        };
+        let gen_config = BMR16GeneratorConfig::new(false, 1024, 10);
         let seed = [0; 32];
-        let generator = BMR16Generator::<10>::new(gen_config, seed);
+        let generator = BMR16Generator::new(gen_config, seed);
 
         let ev_config = BMR16EvaluatorConfig { batch_size: 1024 };
-        let evaluator = BMR16Evaluator::<10>::new(ev_config);
+        let evaluator = BMR16Evaluator::new(ev_config);
 
         let generator_fut = {
             println!("[GEN]-----------start generator--------------");

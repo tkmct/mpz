@@ -281,9 +281,8 @@ impl MixedRadixValue {
     }
 
     /// Returns the moduli array
-    pub(crate) fn moduli(&self) -> &[u16] {
-        // Unwrapping is safe because N is always less than NPRIMES.
-        TryFrom::try_from(&PRIMES[..self.len()]).unwrap()
+    pub(crate) fn moduli(&self) -> Vec<u16> {
+        self.0.iter().map(|i| i.modulus).collect::<Vec<_>>()
     }
 
     pub(crate) fn wires(&self) -> &[ArithNode<Feed>] {

@@ -1,6 +1,7 @@
 //! Oblivious Transfer for arithmetic values
 use async_trait::async_trait;
 use rand::{CryptoRng, Rng};
+use std::collections::HashMap;
 
 use mpz_circuits::arithmetic::{
     types::ArithValue,
@@ -8,8 +9,8 @@ use mpz_circuits::arithmetic::{
 };
 use mpz_core::Block;
 use mpz_garble_core::encoding::{
-    add_label, cmul_label, crt_encoding_state as encoding_state, get_delta_by_modulus, CrtDelta,
-    EncodedCrtValue, LabelModN,
+    add_label, cmul_label, crt_encoding_state as encoding_state, CrtDelta, EncodedCrtValue,
+    LabelModN,
 };
 
 /// Trait for send arithmetic value
@@ -25,7 +26,7 @@ pub trait OTSendCrtEncoding {
         &self,
         id: &str,
         input: Vec<EncodedCrtValue<encoding_state::Full>>,
-        deltas: &[CrtDelta],
+        deltas: &HashMap<u16, CrtDelta>,
         rng: &mut R,
     ) -> Result<Vec<Vec<LabelModN>>, mpz_ot::OTError>;
 }
@@ -44,7 +45,7 @@ where
         &self,
         id: &str,
         input: Vec<EncodedCrtValue<encoding_state::Full>>,
-        deltas: &[CrtDelta],
+        deltas: &HashMap<u16, CrtDelta>,
         rng: &mut R,
     ) -> Result<Vec<Vec<LabelModN>>, mpz_ot::OTError> {
         let mut pairs = Vec::new();
@@ -61,7 +62,9 @@ where
 
                 for i in 0..len {
                     // get zero label and one label for each bit
-                    let delta = get_delta_by_modulus(deltas, q).unwrap();
+                    let delta = deltas.get(&q).ok_or(mpz_ot::OTError::SenderError(
+                        format!("Delta not set for {}", q).into(),
+                    ))?;
                     let zero = LabelModN::random(rng, q);
                     let one = add_label(&zero, &delta);
 
@@ -169,7 +172,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_bool_crt_transfer() {
-        let encoder = ChaChaCrtEncoder::<1>::new([0; 32]);
+        let moduli = [2];
+        let encoder = ChaChaCrtEncoder::new([0; 32], &moduli);
         let mut rng = encoder.get_rng(0);
         let (sender, receiver) = mock_ot_shared_pair();
 
@@ -200,7 +204,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_crt_transfer() {
-        let encoder = ChaChaCrtEncoder::<10>::new([0; 32]);
+        let encoder = ChaChaCrtEncoder::new([0; 32], &PRIMES[0..10]);
         let mut rng = encoder.get_rng(0);
         let (sender, receiver) = mock_ot_shared_pair();
 

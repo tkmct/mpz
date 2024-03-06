@@ -42,6 +42,8 @@ pub struct ArithmeticCircuit {
     pub(crate) cmul_count: usize,
     pub(crate) mul_count: usize,
     pub(crate) proj_count: usize,
+    // list of moduli used in the circuit
+    pub(crate) moduli: Vec<u16>,
 }
 
 impl ArithmeticCircuit {
@@ -116,6 +118,11 @@ impl ArithmeticCircuit {
         self.proj_count
     }
 
+    /// Returns the moduli used in the circuit.
+    pub fn moduli(&self) -> &[u16] {
+        &self.moduli
+    }
+
     /// Evaluate a plaintext arithmetic circuit with given plaintext input values.
     /// TODO: use generic type like ToCrt in inputs values
     pub fn evaluate(&self, values: &[u32]) -> Result<Vec<u32>, ArithCircuitError> {
@@ -169,6 +176,7 @@ impl ArithmeticCircuit {
                 }
                 ArithGate::Proj { x, tt, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
+                    println!("Eval proj gate: {}", tt[x as usize]);
                     feeds[z.id()] = Some(tt[x as usize]);
                 }
             }
@@ -235,5 +243,23 @@ mod tests {
         let values = vec![0];
         let res = circ.evaluate(&values).unwrap();
         assert_eq!(res, vec![1]);
+    }
+
+    #[test]
+    fn test_evaluate_sign() {
+        let builder = ArithmeticCircuitBuilder::new();
+
+        let a = builder.add_input::<u32>("a".into()).unwrap();
+        let out = {
+            let mut state = builder.state().borrow_mut();
+            crt_sign::<10>(&mut state, &a.repr, "99.99%").unwrap()
+        };
+
+        builder.add_output(&out);
+
+        let circ = builder.build().unwrap();
+        let values = vec![3];
+        let res = circ.evaluate(&values).unwrap();
+        assert_eq!(res, vec![24]);
     }
 }

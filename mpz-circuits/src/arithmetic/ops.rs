@@ -160,25 +160,33 @@ pub fn mixed_radix_add_msb(
     state: &mut ArithBuilderState,
     xs: &[MixedRadixValue],
 ) -> Result<ArithNode<Feed>, ArithCircuitError> {
-    println!("mized radix add msb starting");
+    println!("mixed radix add msb starting");
     // check moduli of all mixed radix value
     let len = xs.len();
+    println!("Mixed radix len: {}", len);
     if len < 1 {
         return Err(ArithCircuitError::InvalidLength(len));
     }
 
     let wire_len = xs[0].len();
+    println!("Wire len: {}", wire_len);
 
     let mut opt_carry = None;
     let mut max_carry = 0;
 
+    println!("moduli of xs[0]: {:?}", xs[0].moduli());
     for i in 0..wire_len - 1 {
         // all the ith digits, in one vec
         let ds = xs.iter().map(|x| x.wires()[i]).collect::<Vec<_>>();
+        println!("Iteration {}", i + 1);
+        println!("DS to be added: {:?}", ds);
         // compute the carry
         let q = xs[0].moduli()[i];
+        println!("Carry of this iteration: {}", q);
+
         // max_carry currently contains the max carry from the previous iteration
         let max_val = len as u16 * (q - 1) + max_carry;
+
         // now it is the max carry of this iteration
         max_carry = max_val / q;
 
@@ -241,7 +249,7 @@ pub fn crt_fractional_mixed_radix(
     let ndigits = ms.len();
 
     let q = crt.moduli().iter().fold(1, |acc, &x| acc * x as u128);
-    let M = ms.iter().fold(1, |acc, &x| acc * x as u128);
+    let m = ms.iter().fold(1, |acc, &x| acc * x as u128);
 
     let mut ds = Vec::new();
 
@@ -252,7 +260,7 @@ pub fn crt_fractional_mixed_radix(
 
         for x in 0..p {
             let crt_coef = inv(((q / p as u128) % p as u128) as i128, p as i128);
-            let y = (M as f64 * x as f64 * crt_coef as f64 / p as f64).round() as u128 % M;
+            let y = (m as f64 * x as f64 * crt_coef as f64 / p as f64).round() as u128 % m;
             let digits = as_mixed_radix(y, ms);
             for i in 0..ndigits {
                 tabs[i].push(digits[i]);
@@ -267,7 +275,7 @@ pub fn crt_fractional_mixed_radix(
 
         ds.push(MixedRadixValue::new(new_ds));
     }
-    println!("ds to be added: {:?}", ds);
+    // println!("ds to be added: {:?}", ds);
 
     mixed_radix_add_msb(state, &ds)
 }
@@ -280,10 +288,10 @@ pub fn crt_sign_inner(
     accuracy: &str,
 ) -> Result<ArithNode<Feed>, ArithCircuitError> {
     let factors_of_m = &get_ms(x.moduli().len(), accuracy);
-    println!("fractional mixed radix starting");
     let res = crt_fractional_mixed_radix(state, x, factors_of_m)?;
-    println!("fractional mixed radix end");
+    println!("res: {:?}", res);
     let p = *factors_of_m.last().unwrap();
+    println!("p: {}", p);
     let tt = (0..p).map(|x| (x >= p / 2) as u16).collect::<Vec<_>>();
     state.add_proj_gate(&res, 2, tt)
 }
@@ -294,9 +302,8 @@ pub fn crt_sign<const N: usize>(
     x: &CrtRepr,
     accuracy: &str,
 ) -> Result<CrtRepr, ArithCircuitError> {
-    println!("crt sign inner starting");
     let sign = crt_sign_inner(state, x, accuracy)?;
-    println!("crt sign inner done");
+    println!("sign: {:?}", sign);
     match N {
         1 => Ok(CrtRepr::Bool(CrtValue::new([sign]))),
         10 => {

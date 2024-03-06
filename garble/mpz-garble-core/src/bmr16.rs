@@ -18,7 +18,7 @@ mod tests {
         arithmetic::{
             ops::{add, crt_sign, mul, sub},
             types::{ArithValue, CrtLen, CrtRepr, CrtValue, ToCrtRepr},
-            utils::convert_values_to_crts,
+            utils::{convert_values_to_crts, PRIMES},
         },
         ArithmeticCircuit, ArithmeticCircuitBuilder,
     };
@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn test_garble_add_circ() {
         const BATCH_SIZE: usize = 1000;
-        let encoder = ChaChaCrtEncoder::new([0; 32]);
+        let encoder = ChaChaCrtEncoder::new([0; 32], &PRIMES[0..10]);
         let circ = adder_circ::<u32>();
 
         let a_val = 3;
@@ -85,7 +85,7 @@ mod tests {
             .map(|input| encoder.encode_by_len(0, input.repr.len()))
             .collect();
 
-        let mut gen = BMR16Generator::<10>::new(
+        let mut gen = BMR16Generator::new(
             Arc::new(circ.clone()),
             encoder.deltas().clone(),
             full_inputs.clone(),
@@ -97,7 +97,7 @@ mod tests {
             full_inputs[1].select(encoder.deltas(), b),
         ];
 
-        let mut ev = BMR16Evaluator::<10>::new(Arc::new(circ.clone()), active_inputs).unwrap();
+        let mut ev = BMR16Evaluator::new(Arc::new(circ.clone()), active_inputs).unwrap();
 
         while !(gen.is_complete() && ev.is_complete()) {
             let mut batch = Vec::with_capacity(BATCH_SIZE);
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_garble_mul_circuit() {
         const BATCH_SIZE: usize = 1000;
-        let encoder = ChaChaCrtEncoder::new([0; 32]);
+        let encoder = ChaChaCrtEncoder::new([0; 32], &PRIMES[0..10]);
         let circ = mul_circ();
 
         let a_val = 20;
@@ -165,7 +165,7 @@ mod tests {
             .map(|input| encoder.encode_by_len(0, input.repr.len()))
             .collect();
 
-        let mut gen = BMR16Generator::<10>::new(
+        let mut gen = BMR16Generator::new(
             Arc::new(circ.clone()),
             encoder.deltas().clone(),
             full_inputs.clone(),
@@ -177,7 +177,7 @@ mod tests {
             full_inputs[1].select(encoder.deltas(), b),
         ];
 
-        let mut ev = BMR16Evaluator::<10>::new(Arc::new(circ.clone()), active_inputs).unwrap();
+        let mut ev = BMR16Evaluator::new(Arc::new(circ.clone()), active_inputs).unwrap();
 
         while !(gen.is_complete() && ev.is_complete()) {
             let mut batch = Vec::with_capacity(BATCH_SIZE);
@@ -204,11 +204,6 @@ mod tests {
             .map(|(idx, output)| output.decoding(idx, deltas, &FIXED_KEY_AES))
             .collect::<Vec<CrtDecoding>>();
 
-        // let outputs = ev.decode_outputs(decodings);
-        //
-        // assert!(outputs.is_ok());
-        // assert_eq!(outputs.unwrap()[0], expected);
-
         let outputs: Result<Vec<ArithValue>, DecodeError> = ev
             .outputs()
             .unwrap()
@@ -225,13 +220,17 @@ mod tests {
     #[test]
     fn test_garble_sign_circuit() {
         const BATCH_SIZE: usize = 1000;
-        let encoder = ChaChaCrtEncoder::new([0; 32]);
         let circ = sign_circ();
+        // TODO: get moduli used for the things
+        let moduli = circ.moduli();
+        println!("moduli: {:?}", circ.moduli());
 
-        let a_val = 20;
-        let b_val = 4;
+        let encoder = ChaChaCrtEncoder::new([0; 32], &moduli);
 
-        let expected = 0;
+        let a_val = 4;
+        let b_val = 20;
+
+        let expected = 1;
         let a: Vec<u16> =
             convert_values_to_crts(&[CrtRepr::U32(CrtValue::<10>::new_from_id(0))], &[a_val])
                 .unwrap()[0]
@@ -247,7 +246,7 @@ mod tests {
             .map(|input| encoder.encode_by_len(0, input.repr.len()))
             .collect();
 
-        let mut gen = BMR16Generator::<10>::new(
+        let mut gen = BMR16Generator::new(
             Arc::new(circ.clone()),
             encoder.deltas().clone(),
             full_inputs.clone(),
@@ -259,7 +258,7 @@ mod tests {
             full_inputs[1].select(encoder.deltas(), b),
         ];
 
-        let mut ev = BMR16Evaluator::<10>::new(Arc::new(circ.clone()), active_inputs).unwrap();
+        let mut ev = BMR16Evaluator::new(Arc::new(circ.clone()), active_inputs).unwrap();
 
         while !(gen.is_complete() && ev.is_complete()) {
             let mut batch = Vec::with_capacity(BATCH_SIZE);

@@ -1,5 +1,6 @@
 //! Arithmetic circuit builder module.
 use std::cell::RefCell;
+use std::collections::HashSet;
 
 use crate::{
     arithmetic::{
@@ -93,12 +94,16 @@ pub struct ArithBuilderState {
     mul_count: usize,
     cmul_count: usize,
     proj_count: usize,
+
+    // Moduli numbers used in the circuit
+    moduli: HashSet<u16>,
 }
 
 impl ArithBuilderState {
     pub(crate) fn add_feed(&mut self, modulus: u16) -> ArithNode<Feed> {
         let node = ArithNode::<Feed>::new(self.feed_id, modulus);
         self.feed_id += 1;
+        self.moduli.insert(modulus);
         node
     }
 
@@ -199,8 +204,6 @@ impl ArithBuilderState {
         tt: Vec<u16>,
     ) -> Result<ArithNode<Feed>, ArithCircuitError> {
         // check if the number of tt rows are equal to x's modulus
-
-        // let out = self.add_feed(x.modulus());
         let out = self.add_feed(q);
 
         let gate = ArithGate::Proj {
@@ -225,6 +228,7 @@ impl ArithBuilderState {
             cmul_count: self.cmul_count,
             mul_count: self.mul_count,
             proj_count: self.proj_count,
+            moduli: self.moduli.into_iter().collect(),
         })
     }
 }
