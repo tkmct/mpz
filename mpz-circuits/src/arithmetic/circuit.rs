@@ -155,28 +155,44 @@ impl ArithmeticCircuit {
                     let x = feeds[x.id()].expect("Feed should be set");
                     let y = feeds[y.id()].expect("Feed should be set");
 
+                    println!("Add {} + {} = {} (mod {})", x, y, (x + y) % m, m);
                     feeds[z.id()] = Some((x + y) % m);
                 }
                 ArithGate::Sub { x, y, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
                     let y = feeds[y.id()].expect("Feed should be set");
 
-                    feeds[z.id()] = Some((x - y) % m);
+                    println!("Sub {} - {} = {} (mod {})", x, y, (m + x - y) % m, m);
+                    feeds[z.id()] = Some((m + x - y) % m);
                 }
                 ArithGate::Cmul { x, c, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
 
+                    println!(
+                        "Cmul {} * c({}) = {} (mod {})",
+                        x,
+                        c,
+                        (x as u32 * c) % m as u32,
+                        m
+                    );
                     feeds[z.id()] = Some(((x as u32 * c) % m as u32) as u16);
                 }
                 ArithGate::Mul { x, y, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
                     let y = feeds[y.id()].expect("Feed should be set");
 
-                    feeds[z.id()] = Some(x * y % m);
+                    println!("Mul {} * {} = {} (mod {})", x, y, (x * y) % m, m);
+                    feeds[z.id()] = Some((x * y) % m);
                 }
                 ArithGate::Proj { x, tt, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
-                    println!("Eval proj gate: {}", tt[x as usize]);
+                    println!(
+                        "Proj {} => {} (mod {} => mod {})",
+                        x,
+                        tt[x as usize],
+                        m,
+                        z.modulus()
+                    );
                     feeds[z.id()] = Some(tt[x as usize]);
                 }
             }
@@ -198,7 +214,11 @@ impl IntoIterator for ArithmeticCircuit {
 
 #[cfg(test)]
 mod tests {
-    use crate::arithmetic::{builder::ArithmeticCircuitBuilder, ops::*, types::ToCrtRepr};
+    use rand::{thread_rng, Rng};
+
+    use crate::arithmetic::{
+        builder::ArithmeticCircuitBuilder, ops::*, types::ToCrtRepr, utils::PRIMES,
+    };
 
     #[test]
     fn test_evaluate() {
@@ -247,19 +267,59 @@ mod tests {
 
     #[test]
     fn test_evaluate_sign() {
+        // NOTE: this is tricky because the maximum value is defined
+        // under q/2. not u32::MAX/2.
         let builder = ArithmeticCircuitBuilder::new();
+        let q = PRIMES[0..10].iter().fold(1, |acc, v| acc * (*v as u64));
+        let mut rng = thread_rng();
 
         let a = builder.add_input::<u32>("a".into()).unwrap();
         let out = {
             let mut state = builder.state().borrow_mut();
-            crt_sign::<10>(&mut state, &a.repr, "99.99%").unwrap()
+            crt_sign::<10>(&mut state, &a.repr, "100%").unwrap()
         };
 
         builder.add_output(&out);
 
         let circ = builder.build().unwrap();
-        let values = vec![3];
-        let res = circ.evaluate(&values).unwrap();
-        assert_eq!(res, vec![24]);
+
+        for _ in 0..10 {
+            let r: u128 = rng.gen();
+            let v = if r % (q as u128) < (u32::MAX) as u128 {
+                (r % (q as u128)) as u32
+            } else {
+                u32::MAX
+            };
+            let result = if (v as u64) < (q as u64) / 2 { 0 } else { 1 };
+
+            let values = vec![v];
+            let res = circ.evaluate(&values).unwrap();
+            assert_eq!(res, vec![result]);
+        }
+    }
+
+    #[test]
+    fn test_evaluate_lt() {
+        let builder = ArithmeticCircuitBuilder::new();
+
+        let a = builder.add_input::<u32>("a".into()).unwrap();
+        let b = builder.add_input::<u32>("b".into()).unwrap();
+
+        let out = {
+            // compute lt
+            let mut state = builder.state().borrow_mut();
+            let c = sub(&mut state, &a.repr, &b.repr).unwrap();
+            crt_sign::<10>(&mut state, &c, "100%").unwrap()
+        };
+
+        builder.add_output(&out);
+
+        let circ = builder.build().unwrap();
+
+        let res = circ.evaluate(&vec![4, 6]).unwrap();
+        assert_eq!(res, vec![1]);
+
+        let res = circ.evaluate(&vec![6, 4]).unwrap();
+        assert_eq!(res, vec![0]);
     }
 }

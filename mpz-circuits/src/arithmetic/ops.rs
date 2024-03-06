@@ -160,29 +160,22 @@ pub fn mixed_radix_add_msb(
     state: &mut ArithBuilderState,
     xs: &[MixedRadixValue],
 ) -> Result<ArithNode<Feed>, ArithCircuitError> {
-    println!("mixed radix add msb starting");
     // check moduli of all mixed radix value
     let len = xs.len();
-    println!("Mixed radix len: {}", len);
     if len < 1 {
         return Err(ArithCircuitError::InvalidLength(len));
     }
 
     let wire_len = xs[0].len();
-    println!("Wire len: {}", wire_len);
 
     let mut opt_carry = None;
     let mut max_carry = 0;
 
-    println!("moduli of xs[0]: {:?}", xs[0].moduli());
     for i in 0..wire_len - 1 {
         // all the ith digits, in one vec
         let ds = xs.iter().map(|x| x.wires()[i]).collect::<Vec<_>>();
-        println!("Iteration {}", i + 1);
-        println!("DS to be added: {:?}", ds);
         // compute the carry
         let q = xs[0].moduli()[i];
-        println!("Carry of this iteration: {}", q);
 
         // max_carry currently contains the max carry from the previous iteration
         let max_val = len as u16 * (q - 1) + max_carry;
@@ -198,12 +191,10 @@ pub fn mixed_radix_add_msb(
             .collect::<Result<Vec<ArithNode<Feed>>, ArithCircuitError>>()?;
         // add them up
         let sum = add_many(state, &modded_ds)?;
-        println!("sum, c: {:?}", sum);
         // add in the carry
         let sum_with_carry = opt_carry
             .as_ref()
             .map_or(Ok(sum.clone()), |c| state.add_add_gate(&sum, &c))?;
-        println!("sum_with_carry: {:?}", sum_with_carry);
 
         // carry now contains the carry information, we just have to project it to
         // the correct moduli for the next iteration. It will either be used to
@@ -214,12 +205,6 @@ pub fn mixed_radix_add_msb(
         } else {
             xs[0].moduli()[i + 1] // we will be adding the carry to the MSB
         };
-        println!(
-            "next_mod: {:?}",
-            len as u16 * (xs[0].moduli()[i + 1] - 1) + max_carry + 1
-        );
-
-        println!("max_value: {:?}", max_val);
         let tt = (0..=max_val)
             .map(|i| (i / q) % next_mod)
             .collect::<Vec<_>>();
@@ -230,12 +215,8 @@ pub fn mixed_radix_add_msb(
         .iter()
         .map(|x| x.wires()[wire_len - 1].clone())
         .collect::<Vec<_>>();
-    println!("ds: {:?}", ds);
     let digit_sum = add_many(state, &ds)?;
     opt_carry.as_ref().map_or(Ok(digit_sum.clone()), |d| {
-        println!("digit_sum: {:?}", digit_sum);
-        println!("d: {:?}", d);
-
         state.add_add_gate(&digit_sum, &d)
     })
 }
@@ -289,9 +270,7 @@ pub fn crt_sign_inner(
 ) -> Result<ArithNode<Feed>, ArithCircuitError> {
     let factors_of_m = &get_ms(x.moduli().len(), accuracy);
     let res = crt_fractional_mixed_radix(state, x, factors_of_m)?;
-    println!("res: {:?}", res);
     let p = *factors_of_m.last().unwrap();
-    println!("p: {}", p);
     let tt = (0..p).map(|x| (x >= p / 2) as u16).collect::<Vec<_>>();
     state.add_proj_gate(&res, 2, tt)
 }
@@ -303,7 +282,6 @@ pub fn crt_sign<const N: usize>(
     accuracy: &str,
 ) -> Result<CrtRepr, ArithCircuitError> {
     let sign = crt_sign_inner(state, x, accuracy)?;
-    println!("sign: {:?}", sign);
     match N {
         1 => Ok(CrtRepr::Bool(CrtValue::new([sign]))),
         10 => {
@@ -562,28 +540,4 @@ mod tests {
             );
         }
     }
-
-    #[test]
-    #[ignore]
-    fn test_add_many() {}
-
-    #[test]
-    #[ignore]
-    fn test_mod_change() {}
-
-    #[test]
-    #[ignore]
-    fn test_mixed_radix_msb() {}
-
-    #[test]
-    #[ignore]
-    fn test_fractional_mixed_radix() {}
-
-    #[test]
-    #[ignore]
-    fn test_sgn() {}
-
-    #[test]
-    #[ignore]
-    fn test_sign() {}
 }
