@@ -101,7 +101,7 @@ pub fn convert_crt_to_value(len: usize, values: &[u16]) -> Result<ArithValue, Ty
         ret += *a as i128 * inv(q, p) * q;
         ret %= &n_acc;
     }
-    Ok(ArithValue::U32(ret as u32))
+    Ok(ArithValue::P10(ret as u64))
 }
 
 /// Convert set of crt represented values to field points.
@@ -154,10 +154,10 @@ pub fn convert_values_to_crts(
 pub fn convert_value_to_crt(value: ArithValue) -> Vec<u16> {
     match value {
         ArithValue::Bool(v) => vec![v as u16],
-        ArithValue::U32(v) => PRIMES
+        ArithValue::P10(v) => PRIMES
             .iter()
             .take(u32::LEN)
-            .map(|n| (v % (*n as u32)) as u16)
+            .map(|n| (v % (*n as u64)) as u16)
             .collect::<Vec<u16>>(),
     }
 }

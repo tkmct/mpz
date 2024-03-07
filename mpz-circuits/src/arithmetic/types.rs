@@ -15,6 +15,9 @@ pub enum TypeError {
 
     #[error("Crt representation length does not mach: got {0} and {1}")]
     UnequalLength(usize, usize),
+
+    #[error("The conversion exceeds the size of destination")]
+    ExceedSize,
 }
 
 /// A node in an arithmetic circuit.
@@ -89,6 +92,7 @@ impl From<&ArithNode<Sink>> for ArithNode<Feed> {
 }
 
 /// Crt representation type.
+/// TODO: we have to handle generic Crt<N> type as CrtRepr.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CrtRepr {
     /// Boolean type of CRT representation. represented with 1 wire which describe 0/1.
@@ -245,7 +249,7 @@ impl CrtValueType {
 #[allow(missing_docs)]
 pub enum ArithValue {
     Bool(bool),
-    U32(u32),
+    P10(u64),
 }
 
 impl ArithValue {
@@ -253,7 +257,7 @@ impl ArithValue {
     pub fn value_type(&self) -> CrtValueType {
         match self {
             Self::Bool(_) => CrtValueType::Bool,
-            Self::U32(_) => CrtValueType::U32,
+            Self::P10(_) => CrtValueType::U32,
         }
     }
 
@@ -261,8 +265,27 @@ impl ArithValue {
     pub fn num_wire(&self) -> usize {
         match self {
             Self::Bool(_) => 1,
-            Self::U32(_) => 10,
+            Self::P10(_) => 10,
         }
+    }
+}
+
+impl From<u32> for ArithValue {
+    fn from(value: u32) -> Self {
+        ArithValue::P10(value as u64)
+    }
+}
+
+impl TryFrom<u64> for ArithValue {
+    type Error = TypeError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        let p: u64 = PRIMES[0..10].iter().fold(1, |acc, x| acc * *x as u64);
+        if value >= p {
+            return Err(TypeError::ExceedSize);
+        }
+
+        Ok(ArithValue::P10(value))
     }
 }
 

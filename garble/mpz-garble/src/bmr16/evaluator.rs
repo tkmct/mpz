@@ -196,7 +196,7 @@ impl BMR16Evaluator {
 
         let active_encodings = ot.receive_arith(id, ot_recv_values).await?;
         println!("[EV] Encodings of evaluators inputs");
-        print_encodings(&active_encodings);
+        // print_encodings(&active_encodings);
 
         // Make sure the generator sent the expected number of values.
         // This should be handled by the ot receiver, but we double-check anyways :)
@@ -248,7 +248,7 @@ impl BMR16Evaluator {
 
         let active_encodings = expect_msg_or_err!(stream, GarbleMessage::ActiveCrtValues)?;
         println!("[EV] Encodings of generator's inputs");
-        print_encodings(&active_encodings);
+        // print_encodings(&active_encodings);
 
         // Make sure the generator sent the expected number of values.
         if active_encodings.len() != values.len() {
@@ -310,9 +310,9 @@ impl BMR16Evaluator {
             println!("[EV] Waiting for incoming message...");
             let encrypted_gates = expect_msg_or_err!(stream, GarbleMessage::ArithEncryptedGates)?;
             println!("[EV] Got encrypted gates");
-            encrypted_gates.iter().for_each(|gate| {
-                println!("EncryptedGate({})", gate);
-            });
+            // encrypted_gates.iter().for_each(|gate| {
+            //     println!("EncryptedGate({})", gate);
+            // });
 
             for batch in encrypted_gates.chunks(self.config.batch_size) {
                 let batch = batch.to_vec();
@@ -349,7 +349,7 @@ impl BMR16Evaluator {
         println!("[EV] decode() start");
         let decodings = expect_msg_or_err!(stream, GarbleMessage::CrtValueDecodings)?;
         println!("[EV] Received decoding info from generator");
-        print_decodings(&decodings);
+        // print_decodings(&decodings);
 
         // Make sure the generator sent the expected number of decodings.
         if decodings.len() != values.len() {

@@ -210,7 +210,7 @@ mod tests {
 
         let ty = vec![encoder.encode_by_len(0, 10)];
 
-        let choices = vec![ArithValue::U32(12)];
+        let choices = vec![ArithValue::from(12)];
 
         // This bases should be used as actual low label for arith crt labels.
         let bases = sender

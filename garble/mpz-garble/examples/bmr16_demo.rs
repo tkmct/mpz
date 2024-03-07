@@ -97,7 +97,7 @@ impl CircuitConfig {
             config.push(ArithValueIdConfig::Private {
                 id: ValueId::new(&a_priv.0),
                 ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
+                value: Some(ArithValue::from(10)),
             })
         }
         for b_priv in self.b_private_inputs.iter() {
@@ -123,7 +123,7 @@ impl CircuitConfig {
             config.push(ArithValueIdConfig::Private {
                 id: ValueId::new(&b_priv.0),
                 ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
+                value: Some(ArithValue::from(10)),
             })
         }
         config

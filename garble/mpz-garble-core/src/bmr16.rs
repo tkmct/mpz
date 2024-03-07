@@ -134,7 +134,7 @@ mod tests {
             .collect();
 
         assert!(outputs.is_ok());
-        assert_eq!(outputs.unwrap()[0], ArithValue::U32(expected));
+        assert_eq!(outputs.unwrap()[0], ArithValue::from(expected));
     }
 
     #[test]
@@ -213,7 +213,7 @@ mod tests {
             .collect();
 
         assert!(outputs.is_ok());
-        assert_eq!(outputs.unwrap()[0], ArithValue::U32(expected));
+        assert_eq!(outputs.unwrap()[0], ArithValue::from(expected));
     }
 
     // TODO: test sign circuit
@@ -293,6 +293,6 @@ mod tests {
             .collect();
 
         assert!(outputs.is_ok());
-        assert_eq!(outputs.unwrap()[0], ArithValue::U32(expected));
+        assert_eq!(outputs.unwrap()[0], ArithValue::from(expected));
     }
 }

@@ -43,7 +43,8 @@ mod tests {
             let d = mul(&mut state, &a.repr, &b.repr).unwrap();
             // if a*b > x => 1, otherwise 0
             let e = sub(&mut state, &d, &c.repr).unwrap();
-            out = crt_sign::<10>(&mut state, &e, "100%").unwrap();
+            let f = crt_sign::<10>(&mut state, &e, "100%").unwrap();
+            out = mul(&mut state, &a.repr, &f).unwrap();
         }
 
         builder.add_output(&out);
@@ -87,7 +88,7 @@ mod tests {
                 ArithValueIdConfig::Private {
                     id: ValueId::new("input/a"),
                     ty: CrtValueType::U32,
-                    value: Some(ArithValue::U32(10)),
+                    value: Some(ArithValue::from(10)),
                 },
                 ArithValueIdConfig::Private {
                     id: ValueId::new("input/b"),
@@ -163,12 +164,12 @@ mod tests {
                 ArithValueIdConfig::Private {
                     id: ValueId::new("input/b"),
                     ty: CrtValueType::U32,
-                    value: Some(ArithValue::U32(31)),
+                    value: Some(ArithValue::from(31)),
                 },
                 ArithValueIdConfig::Private {
                     id: ValueId::new("input/c"),
                     ty: CrtValueType::U32,
-                    value: Some(ArithValue::U32(320)),
+                    value: Some(ArithValue::from(320)),
                 },
             ];
 
@@ -207,6 +208,6 @@ mod tests {
         let (_, evaluator_output) = tokio::join!(generator_fut, evaluator_fut);
         println!("Decoded evaluator output: {:?}", evaluator_output);
 
-        assert_eq!(evaluator_output.unwrap(), vec![ArithValue::U32(1)]);
+        assert_eq!(evaluator_output.unwrap(), vec![ArithValue::from(10)]);
     }
 }

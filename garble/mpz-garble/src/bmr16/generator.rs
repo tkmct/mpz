@@ -264,6 +264,7 @@ impl BMR16Generator {
         let inputs = inputs
             .iter()
             .map(|value| {
+                // println!("name: {:?}", value);
                 state
                     .encoding_registry
                     .get_encoding(value)
