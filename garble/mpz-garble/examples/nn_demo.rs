@@ -566,19 +566,19 @@ struct RawNNInput {
     input: Vec<[u64; 2]>,
     out: Vec<[u64; 4]>,
     #[serde(rename(deserialize = "w1"))]
-    w0: [[u64; 2]; 5],
+    w0: [[u64; 2]; 32],
     #[serde(rename(deserialize = "w2"))]
-    w1: [[u64; 5]; 7],
+    w1: [[u64; 32]; 64],
     #[serde(rename(deserialize = "w3"))]
-    w2: [[u64; 7]; 11],
+    w2: [[u64; 64]; 128],
     #[serde(rename(deserialize = "w4"))]
-    w3: [[u64; 11]; 4],
+    w3: [[u64; 128]; 4],
     #[serde(rename(deserialize = "b1"))]
-    b0: [u64; 5],
+    b0: [u64; 32],
     #[serde(rename(deserialize = "b2"))]
-    b1: [u64; 7],
+    b1: [u64; 64],
     #[serde(rename(deserialize = "b3"))]
-    b2: [u64; 11],
+    b2: [u64; 128],
     #[serde(rename(deserialize = "b4"))]
     b3: [u64; 4],
 }
