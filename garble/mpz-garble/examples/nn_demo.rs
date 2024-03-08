@@ -566,21 +566,21 @@ struct RawNNInput {
     input: Vec<[u64; 2]>,
     out: Vec<[u64; 4]>,
     #[serde(rename(deserialize = "w1"))]
-    w0: [[u64; 2]; 32],
+    w0: Vec<Vec<u64>>,
     #[serde(rename(deserialize = "w2"))]
-    w1: [[u64; 32]; 64],
+    w1: Vec<Vec<u64>>,
     #[serde(rename(deserialize = "w3"))]
-    w2: [[u64; 64]; 128],
+    w2: Vec<Vec<u64>>,
     #[serde(rename(deserialize = "w4"))]
-    w3: [[u64; 128]; 4],
+    w3: Vec<Vec<u64>>,
     #[serde(rename(deserialize = "b1"))]
-    b0: [u64; 32],
+    b0: Vec<u64>,
     #[serde(rename(deserialize = "b2"))]
-    b1: [u64; 64],
+    b1: Vec<u64>,
     #[serde(rename(deserialize = "b3"))]
-    b2: [u64; 128],
+    b2: Vec<u64>,
     #[serde(rename(deserialize = "b4"))]
-    b3: [u64; 4],
+    b3: Vec<u64>,
 }
 
 // This method is designed to specifically parse nn fc 2_5_7_11_4 model.
@@ -645,10 +645,26 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             raw_input.b1.to_vec(),
             raw_input.b2.to_vec(),
             raw_input.b3.to_vec(),
-            raw_input.w0.iter().flat_map(|&i| i).collect::<Vec<_>>(),
-            raw_input.w1.iter().flat_map(|&i| i).collect::<Vec<_>>(),
-            raw_input.w2.iter().flat_map(|&i| i).collect::<Vec<_>>(),
-            raw_input.w3.iter().flat_map(|&i| i).collect::<Vec<_>>(),
+            raw_input
+                .w0
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
+            raw_input
+                .w1
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
+            raw_input
+                .w2
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
+            raw_input
+                .w3
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
         ]
         .into_iter()
         .flat_map(|i| i)
