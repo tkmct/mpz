@@ -573,6 +573,14 @@ struct RawNNInput {
     w2: Vec<Vec<u64>>,
     #[serde(rename(deserialize = "w4"))]
     w3: Vec<Vec<u64>>,
+    // #[serde(rename(deserialize = "w5"))]
+    // w4: Vec<Vec<u64>>,
+    // #[serde(rename(deserialize = "w6"))]
+    // w5: Vec<Vec<u64>>,
+    // #[serde(rename(deserialize = "w7"))]
+    // w6: Vec<Vec<u64>>,
+    // #[serde(rename(deserialize = "w8"))]
+    // w7: Vec<Vec<u64>>,
     #[serde(rename(deserialize = "b1"))]
     b0: Vec<u64>,
     #[serde(rename(deserialize = "b2"))]
@@ -581,6 +589,14 @@ struct RawNNInput {
     b2: Vec<u64>,
     #[serde(rename(deserialize = "b4"))]
     b3: Vec<u64>,
+    // #[serde(rename(deserialize = "b5"))]
+    // b4: Vec<u64>,
+    // #[serde(rename(deserialize = "b6"))]
+    // b5: Vec<u64>,
+    // #[serde(rename(deserialize = "b7"))]
+    // b6: Vec<u64>,
+    // #[serde(rename(deserialize = "b8"))]
+    // b7: Vec<u64>,
 }
 
 // This method is designed to specifically parse nn fc 2_5_7_11_4 model.
@@ -601,7 +617,9 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     let (circ, config) = parse_raw_circuit(
         &raw_circ,
         &vec![
-            "0.w0", "0.w1", "0.w2", "0.w3", "0.b0", "0.b1", "0.b2", "0.b3",
+            "0.w0", "0.w1", "0.w2", "0.w3", // "0.w4", "0.w5", "0.w6", "0.w7",
+            "0.b0", "0.b1", "0.b2", "0.b3",
+            // "0.b4", "0.b5", "0.b6", "0.b7",
         ],
         &vec!["0.in"],
         &vec!["0.out"],
@@ -645,6 +663,10 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
             raw_input.b1.to_vec(),
             raw_input.b2.to_vec(),
             raw_input.b3.to_vec(),
+            // raw_input.b4.to_vec(),
+            // raw_input.b5.to_vec(),
+            // raw_input.b6.to_vec(),
+            // raw_input.b7.to_vec(),
             raw_input
                 .w0
                 .iter()
@@ -665,6 +687,26 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
                 .iter()
                 .flat_map(|i| i.clone())
                 .collect::<Vec<_>>(),
+            // raw_input
+            //     .w4
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
+            // raw_input
+            //     .w5
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
+            // raw_input
+            //     .w6
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
+            // raw_input
+            //     .w7
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
         ]
         .into_iter()
         .flat_map(|i| i)
