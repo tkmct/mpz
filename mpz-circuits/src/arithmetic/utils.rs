@@ -137,14 +137,14 @@ pub fn convert_crts_to_values(
 /// Convert set of values to CRT representation and put actual values in Feed.
 pub fn convert_values_to_crts(
     crt_reprs: &[CrtRepr],
-    values: &[u32],
+    values: &[u64],
 ) -> Result<Vec<Vec<u16>>, ArithCircuitError> {
     Ok(crt_reprs
         .iter()
         .zip(values.iter())
         .map(|(crt, val)| {
             crt.iter()
-                .map(|n| (val % (n.modulus() as u32)) as u16)
+                .map(|n| (val % (n.modulus() as u64)) as u16)
                 .collect::<Vec<u16>>()
         })
         .collect::<Vec<Vec<u16>>>())
@@ -235,5 +235,15 @@ mod tests {
 
         let actual_vals = res.unwrap();
         assert_eq!(actual_vals, vec![124]);
+    }
+
+    #[test]
+    fn test_mixed_radix() {
+        let crt_repr = generate_crt_repr();
+        let radii = vec![2, 2, 2, 2, 2, 2, 2, 2,];
+        let digits = as_mixed_radix(10, &radii);
+        for d in digits.iter() {
+            println!("{}", *d);
+        }
     }
 }
