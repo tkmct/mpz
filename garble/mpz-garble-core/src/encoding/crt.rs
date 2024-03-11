@@ -66,7 +66,7 @@ pub fn cmul_label(x: &LabelModN, c: u64) -> LabelModN {
     let q = x.modulus;
     let z_inner = x
         .iter()
-        .map(|d| (*d as u32 * c as u32 % q as u32) as u16)
+        .map(|d| (*d as u64 * c as u64 % q as u64) as u16)
         .collect();
 
     LabelModN::new(z_inner, q)

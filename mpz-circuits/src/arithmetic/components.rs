@@ -28,7 +28,7 @@ pub enum ArithGate {
     Cmul {
         x: ArithNode<Sink>,
         /// constant value should be set as y value
-        c: u32,
+        c: u64,
         z: ArithNode<Feed>,
     },
     Proj {

@@ -189,7 +189,7 @@ impl CircuitConfig {
                 ArithValueIdConfig::Public {
                     id: ValueId::new(&c.0),
                     ty: CrtValueType::U32,
-                    value: ArithValue::from(c.1),
+                    value: ArithValue::from(c.1 as u64),
                 },
             );
         }
@@ -241,7 +241,7 @@ impl CircuitConfig {
                 ArithValueIdConfig::Public {
                     id: ValueId::new(&c.0),
                     ty: CrtValueType::U32,
-                    value: ArithValue::from(c.1),
+                    value: ArithValue::from(c.1 as u64),
                 },
             );
         }
@@ -409,7 +409,7 @@ fn parse_raw_circuit(
             (Wire::Const(c), Wire::Var(v)) => match gate.gate_type {
                 AGateType::AMul => {
                     let mut state = builder.state().borrow_mut();
-                    let out = cmul(&mut state, &v, c);
+                    let out = cmul(&mut state, &v, c as u64);
                     used_vars.insert(gate.output, out.clone());
                 }
                 AGateType::AAdd => {
@@ -464,7 +464,8 @@ fn parse_raw_circuit(
             (Wire::Var(v), Wire::Const(c)) => match gate.gate_type {
                 AGateType::AMul => {
                     let mut state = builder.state().borrow_mut();
-                    let out = cmul(&mut state, &v, c);
+                    let out = cmul(&mut state, &v, c as u64);
+                    println!("CMUL with {}", c);
                     used_vars.insert(gate.output, out.clone());
                 }
                 AGateType::AAdd => {

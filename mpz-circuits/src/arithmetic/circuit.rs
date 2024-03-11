@@ -125,7 +125,7 @@ impl ArithmeticCircuit {
 
     /// Evaluate a plaintext arithmetic circuit with given plaintext input values.
     /// TODO: use generic type like ToCrt in inputs values
-    pub fn evaluate(&self, values: &[u32]) -> Result<Vec<u32>, ArithCircuitError> {
+    pub fn evaluate(&self, values: &[u64]) -> Result<Vec<u32>, ArithCircuitError> {
         if values.len() != self.inputs.len() {
             return Err(ArithCircuitError::InvalidInputCount(
                 self.inputs.len(),
@@ -172,10 +172,10 @@ impl ArithmeticCircuit {
                         "Cmul {} * c({}) = {} (mod {})",
                         x,
                         c,
-                        (x as u32 * c) % m as u32,
+                        (x as u64 * c) % m as u64,
                         m
                     );
-                    feeds[z.id()] = Some(((x as u32 * c) % m as u32) as u16);
+                    feeds[z.id()] = Some(((x as u64 * c) % m as u64) as u16);
                 }
                 ArithGate::Mul { x, y, z } => {
                     let x = feeds[x.id()].expect("Feed should be set");
@@ -292,7 +292,7 @@ mod tests {
             };
             let result = if (v as u64) < (q as u64) / 2 { 0 } else { 1 };
 
-            let values = vec![v];
+            let values = vec![v as u64];
             let res = circ.evaluate(&values).unwrap();
             assert_eq!(res, vec![result]);
         }

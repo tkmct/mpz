@@ -110,7 +110,7 @@ pub fn mul(
 }
 
 /// Multiply crt value by constant value.
-pub fn cmul(state: &mut ArithBuilderState, x: &CrtRepr, c: u32) -> CrtRepr {
+pub fn cmul(state: &mut ArithBuilderState, x: &CrtRepr, c: u64) -> CrtRepr {
     match x {
         CrtRepr::Bool(xval) => {
             let z = state.add_cmul_gate(&xval.nodes()[0], c);

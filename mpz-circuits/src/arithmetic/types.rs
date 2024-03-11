@@ -270,24 +270,24 @@ impl ArithValue {
     }
 }
 
-impl From<u32> for ArithValue {
-    fn from(value: u32) -> Self {
+impl From<u64> for ArithValue {
+    fn from(value: u64) -> Self {
         ArithValue::P10(value as u64)
     }
 }
 
-impl TryFrom<u64> for ArithValue {
-    type Error = TypeError;
+// impl TryFrom<u64> for ArithValue {
+//     type Error = TypeError;
 
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-        let p: u64 = PRIMES[0..10].iter().fold(1, |acc, x| acc * *x as u64);
-        if value >= p {
-            return Err(TypeError::ExceedSize);
-        }
+//     fn try_from(value: u64) -> Result<Self, Self::Error> {
+//         let p: u64 = PRIMES[0..10].iter().fold(1, |acc, x| acc * *x as u64);
+//         if value >= p {
+//             return Err(TypeError::ExceedSize);
+//         }
 
-        Ok(ArithValue::P10(value))
-    }
-}
+//         Ok(ArithValue::P10(value))
+//     }
+// }
 
 /// Mixed radix value
 #[derive(Debug, Clone, PartialEq)]

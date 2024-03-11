@@ -260,13 +260,13 @@ fn parse_raw_circuit(
                 match gate.gate_type {
                     AGateType::AMul => {
                         let mut state = builder.state().borrow_mut();
-                        let out = cmul(&mut state, &v, c);
+                        let out = cmul(&mut state, &v, c as u64);
                         used_vars.insert(gate.output, out.clone());
                     }
                     AGateType::AAdd => {
                         let mut state = builder.state().borrow_mut();
                         // FIXME: this should be add gate?
-                        let out = cmul(&mut state, &v, c);
+                        let out = cmul(&mut state, &v, c as u64);
                         used_vars.insert(gate.output, out.clone());
                     }
 
