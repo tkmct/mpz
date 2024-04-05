@@ -126,6 +126,13 @@ impl CrtRepr {
             CrtRepr::U32(v) => v.moduli(),
         }
     }
+
+    pub(crate) fn nodes(&self) -> Vec<ArithNode<Feed>> {
+        match self {
+            CrtRepr::Bool(val) => val.nodes().to_vec(),
+            CrtRepr::U32(val) => val.nodes().to_vec(),
+        }
+    }
 }
 
 /// Trait for convertable to CrtRepr
@@ -290,7 +297,7 @@ impl From<u64> for ArithValue {
 // }
 
 /// Mixed radix value
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct MixedRadixValue(Vec<ArithNode<Feed>>);
 
 impl MixedRadixValue {

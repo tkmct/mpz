@@ -328,6 +328,68 @@ pub fn crt_sgn<const N: usize>(
     }
 }
 
+/// Convert CRT representation to PMR representation
+pub fn crt_to_pmr(
+    state: &mut ArithBuilderState,
+    xs: &CrtRepr,
+) -> Result<MixedRadixValue, ArithCircuitError> {
+    let gadget_projection_tt = |p: u16, q: u16| -> Vec<u16> {
+        let pq = p as u32 + q as u32 - 1;
+        let mut tab = Vec::with_capacity(pq as usize);
+        for z in 0..pq {
+            let mut x = 0;
+            let mut y = 0;
+            'outer: for i in 0..p as u32 {
+                for j in 0..q as u32 {
+                    if (i + pq - j) % pq == z {
+                        x = i;
+                        y = j;
+                        break 'outer;
+                    }
+                }
+            }
+            debug_assert_eq!((x + pq - y) % pq, z);
+            tab.push(
+                (((x * q as u32 * inv(q as i128, p as i128) as u32
+                    + y * p as u32 * inv(p as i128, q as i128) as u32)
+                    / p as u32)
+                    % q as u32) as u16,
+            );
+        }
+        tab
+    };
+
+    let mut gadget =
+        |x: &ArithNode<Feed>, y: &ArithNode<Feed>| -> Result<ArithNode<Feed>, ArithCircuitError> {
+            let p = x.modulus();
+            let q = y.modulus();
+            let x_ = mod_change(state, x, p + q - 1)?;
+            let y_ = mod_change(state, y, p + q - 1)?;
+            let z = state.add_sub_gate(&x_, &y_)?;
+            state.add_proj_gate(&z, q, gadget_projection_tt(p, q))
+        };
+
+    let n = xs.len();
+    let mut x = vec![vec![None; n + 1]; n + 1];
+
+    for j in 0..n {
+        x[0][j + 1] = Some(xs.nodes()[j].clone());
+    }
+
+    for i in 1..=n {
+        for j in i + 1..=n {
+            let z = gadget(x[i - 1][i].as_ref().unwrap(), x[i - 1][j].as_ref().unwrap())?;
+            x[i][j] = Some(z);
+        }
+    }
+
+    let mut zwires = Vec::with_capacity(n);
+    for i in 0..n {
+        zwires.push(x[i][i + 1].take().unwrap());
+    }
+    Ok(MixedRadixValue::new(zwires))
+}
+
 /// Compute the `ms` needed for the number of CRT primes in `x`, with accuracy
 /// `accuracy`.
 ///
@@ -539,5 +601,15 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn test_crt_to_pmr() {
+        let builder = ArithmeticCircuitBuilder::default();
+        let x = builder.add_input::<u32>("x".into()).unwrap();
+        let pmr = crt_to_pmr(&mut builder.state().borrow_mut(), &x.repr).unwrap();
+
+        let circ = builder.build().unwrap();
+        assert_eq!(pmr, MixedRadixValue::new(vec![]));
     }
 }
