@@ -1,3 +1,4 @@
+use clap::{App, Arg};
 use futures::SinkExt;
 use mpz_circuits::{
     arithmetic::{
@@ -600,19 +601,20 @@ struct RawNNInput {
     // b7: Vec<u64>,
 }
 
-// This method is designed to specifically parse nn fc 2_5_7_11_4 model.
-fn parse_input() -> RawNNInput {
-    let raw = fs::read_to_string("./examples/nn_input.json").unwrap();
+fn parse_input(input_path: &str) -> RawNNInput {
+    let raw = fs::read_to_string(input_path).unwrap();
     let raw_input: RawNNInput = serde_json::from_str(&raw).unwrap();
     raw_input
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error>> {
+    let CliOpt { circuit_path, input_path } = parse_cli()?;
+
     // Load circuit file
-    let raw = fs::read_to_string("./examples/nn_circuit.json")?;
+    let raw = fs::read_to_string(circuit_path)?;
     let raw_circ: RawCircuit = serde_json::from_str(&raw)?;
-    let raw_input = parse_input();
+    let raw_input = parse_input(&input_path);
     // println!("Raw_input: {:?}", raw_input.w0);
 
     let (circ, config) = parse_raw_circuit(
@@ -802,4 +804,38 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     println!("Decoded evaluator output: {:?}", evaluator_output);
 
     Ok(())
+}
+
+struct CliOpt {
+    circuit_path: String,
+    input_path: String,
+}
+
+fn parse_cli() -> Result<CliOpt, Box<dyn error::Error>> {
+    let matches = App::new("mpz-garble local_test")
+        .arg(
+            Arg::with_name("circuit")
+                .long("circuit")
+                .value_name("CIRCUIT")
+                .help("Circuit file")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("input")
+                .long("input")
+                .value_name("INPUT")
+                .help("Circuit inputs")
+                .required(true)
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let circuit = matches.value_of("circuit").ok_or_else(|| "Circuit file is required")?;
+    let input = matches.value_of("input").ok_or_else(|| "Input file is required")?;
+
+    Ok(CliOpt {
+        circuit_path: circuit.into(),
+        input_path: input.into(),
+    })
 }
