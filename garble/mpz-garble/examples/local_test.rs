@@ -609,7 +609,7 @@ fn parse_input(input_path: &str) -> RawNNInput {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn error::Error>> {
-    let CliOpt { circuit_path, input_path } = parse_cli()?;
+    let CliOpt { circuit_path, input_path } = parse_cli();
 
     // Load circuit file
     let raw = fs::read_to_string(circuit_path)?;
@@ -811,7 +811,7 @@ struct CliOpt {
     input_path: String,
 }
 
-fn parse_cli() -> Result<CliOpt, Box<dyn error::Error>> {
+fn parse_cli() -> CliOpt {
     let matches = App::new("mpz-garble local_test")
         .arg(
             Arg::with_name("circuit")
@@ -831,11 +831,8 @@ fn parse_cli() -> Result<CliOpt, Box<dyn error::Error>> {
         )
         .get_matches();
 
-    let circuit = matches.value_of("circuit").ok_or_else(|| "Circuit file is required")?;
-    let input = matches.value_of("input").ok_or_else(|| "Input file is required")?;
-
-    Ok(CliOpt {
-        circuit_path: circuit.into(),
-        input_path: input.into(),
-    })
+    CliOpt {
+        circuit_path: matches.value_of("circuit").unwrap().into(),
+        input_path: matches.value_of("input").unwrap().into(),
+    }
 }
