@@ -683,13 +683,20 @@ impl RawInput for RawNNInput {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn error::Error>> {
+async fn main() {
     let CliOpt { circuit_path, input_path } = parse_cli();
 
+    run_test::<RawNNInput>(&circuit_path, &input_path).await.unwrap()
+}
+
+async fn run_test<Input: RawInput>(
+    circuit_path: &str,
+    input_path: &str,
+) -> Result<(), Box<dyn error::Error>> {
     // Load circuit file
     let raw = fs::read_to_string(circuit_path)?;
     let raw_circ: RawCircuit = serde_json::from_str(&raw)?;
-    let raw_input = RawNNInput::from_file(&input_path);
+    let raw_input = Input::from_file(&input_path);
     // println!("Raw_input: {:?}", raw_input.w0);
 
     let (circ, config) = parse_raw_circuit(
