@@ -1,3 +1,4 @@
+use clap::{App, Arg};
 use futures::SinkExt;
 use mpz_circuits::{
     arithmetic::{
@@ -559,6 +560,17 @@ fn parse_raw_circuit(
     builder.build().map(|circ| (circ, config))
 }
 
+trait RawInput: Sized {
+    fn from_str(s: &str) -> Self;
+    fn get_a_input(&self) -> Vec<ArithValue>;
+    fn get_b_input(&self) -> Vec<ArithValue>;
+
+    fn from_file(path: &str) -> Self {
+        let raw = fs::read_to_string(path).unwrap();
+        Self::from_str(&raw)
+    }
+}
+
 // TODO: split the input config into A input and B input
 // then when provided to gen_config, recursively flat the values and create ArithValue from them.
 #[derive(Deserialize, Debug)]
@@ -600,19 +612,91 @@ struct RawNNInput {
     // b7: Vec<u64>,
 }
 
-// This method is designed to specifically parse nn fc 2_5_7_11_4 model.
-fn parse_input() -> RawNNInput {
-    let raw = fs::read_to_string("./examples/nn_input.json").unwrap();
-    let raw_input: RawNNInput = serde_json::from_str(&raw).unwrap();
-    raw_input
+impl RawInput for RawNNInput {
+    fn from_str(s: &str) -> Self {
+        serde_json::from_str(s).unwrap()
+    }
+
+    fn get_a_input(&self) -> Vec<ArithValue> {
+        vec![
+            self.b0.to_vec(),
+            self.b1.to_vec(),
+            self.b2.to_vec(),
+            self.b3.to_vec(),
+            // self.b4.to_vec(),
+            // self.b5.to_vec(),
+            // self.b6.to_vec(),
+            // self.b7.to_vec(),
+            self
+                .w0
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
+            self
+                .w1
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
+            self
+                .w2
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
+            self
+                .w3
+                .iter()
+                .flat_map(|i| i.clone())
+                .collect::<Vec<_>>(),
+            // self
+            //     .w4
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
+            // self
+            //     .w5
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
+            // self
+            //     .w6
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
+            // self
+            //     .w7
+            //     .iter()
+            //     .flat_map(|i| i.clone())
+            //     .collect::<Vec<_>>(),
+        ]
+        .into_iter()
+        .flat_map(|i| i)
+        .map(|v| ArithValue::try_from(v).unwrap())
+        .collect::<Vec<ArithValue>>()
+    }
+
+    fn get_b_input(&self) -> Vec<ArithValue> {
+        self.input[0]
+            .into_iter()
+            .map(|v| ArithValue::try_from(v).unwrap())
+            .collect::<Vec<ArithValue>>()
+    }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn error::Error>> {
+async fn main() {
+    let CliOpt { circuit_path, input_path } = parse_cli();
+
+    run_test::<RawNNInput>(&circuit_path, &input_path).await.unwrap()
+}
+
+async fn run_test<Input: RawInput>(
+    circuit_path: &str,
+    input_path: &str,
+) -> Result<(), Box<dyn error::Error>> {
     // Load circuit file
-    let raw = fs::read_to_string("./examples/nn_circuit.json")?;
+    let raw = fs::read_to_string(circuit_path)?;
     let raw_circ: RawCircuit = serde_json::from_str(&raw)?;
-    let raw_input = parse_input();
+    let raw_input = Input::from_file(&input_path);
     // println!("Raw_input: {:?}", raw_input.w0);
 
     let (circ, config) = parse_raw_circuit(
@@ -659,60 +743,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
         // TODO: need to check if the input of the arithmetic circuit corresponds to intended input variables.
         // -> this can be possible only if
         // TODO: load actual data from the model file and pass it to gen_input_config
-        let a_input = vec![
-            raw_input.b0.to_vec(),
-            raw_input.b1.to_vec(),
-            raw_input.b2.to_vec(),
-            raw_input.b3.to_vec(),
-            // raw_input.b4.to_vec(),
-            // raw_input.b5.to_vec(),
-            // raw_input.b6.to_vec(),
-            // raw_input.b7.to_vec(),
-            raw_input
-                .w0
-                .iter()
-                .flat_map(|i| i.clone())
-                .collect::<Vec<_>>(),
-            raw_input
-                .w1
-                .iter()
-                .flat_map(|i| i.clone())
-                .collect::<Vec<_>>(),
-            raw_input
-                .w2
-                .iter()
-                .flat_map(|i| i.clone())
-                .collect::<Vec<_>>(),
-            raw_input
-                .w3
-                .iter()
-                .flat_map(|i| i.clone())
-                .collect::<Vec<_>>(),
-            // raw_input
-            //     .w4
-            //     .iter()
-            //     .flat_map(|i| i.clone())
-            //     .collect::<Vec<_>>(),
-            // raw_input
-            //     .w5
-            //     .iter()
-            //     .flat_map(|i| i.clone())
-            //     .collect::<Vec<_>>(),
-            // raw_input
-            //     .w6
-            //     .iter()
-            //     .flat_map(|i| i.clone())
-            //     .collect::<Vec<_>>(),
-            // raw_input
-            //     .w7
-            //     .iter()
-            //     .flat_map(|i| i.clone())
-            //     .collect::<Vec<_>>(),
-        ]
-        .into_iter()
-        .flat_map(|i| i)
-        .map(|v| ArithValue::try_from(v).unwrap())
-        .collect::<Vec<ArithValue>>();
+        let a_input = raw_input.get_a_input();
 
         let input_config = config.gen_a_input_config(&a_input, &ordering).unwrap();
         println!("config.output: {:?}", config.outputs);
@@ -757,10 +788,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     let evaluator_fut = {
         println!("[EV]-----------start evaluator--------------");
         let out_refs = config.get_output_refs();
-        let b_input = raw_input.input[0]
-            .into_iter()
-            .map(|v| ArithValue::try_from(v).unwrap())
-            .collect::<Vec<ArithValue>>();
+        let b_input = raw_input.get_b_input();
 
         println!("b_input: {:?}", b_input);
         let input_config = config.gen_b_input_config(&b_input, &ordering).unwrap();
@@ -802,4 +830,35 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     println!("Decoded evaluator output: {:?}", evaluator_output);
 
     Ok(())
+}
+
+struct CliOpt {
+    circuit_path: String,
+    input_path: String,
+}
+
+fn parse_cli() -> CliOpt {
+    let matches = App::new("mpz-garble local_test")
+        .arg(
+            Arg::with_name("circuit")
+                .long("circuit")
+                .value_name("CIRCUIT")
+                .help("Circuit file")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("input")
+                .long("input")
+                .value_name("INPUT")
+                .help("Circuit inputs")
+                .required(true)
+                .takes_value(true),
+        )
+        .get_matches();
+
+    CliOpt {
+        circuit_path: matches.value_of("circuit").unwrap().into(),
+        input_path: matches.value_of("input").unwrap().into(),
+    }
 }
