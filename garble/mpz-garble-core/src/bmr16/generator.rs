@@ -144,7 +144,6 @@ impl Iterator for BMR16Generator {
             self.pos += 1;
             match gate {
                 ArithGate::Add { x, y, z } => {
-                    // zero labels for input x and y
                     let x_0 = low_labels
                         .get(x.id())
                         .expect("label index out of range")
@@ -159,7 +158,6 @@ impl Iterator for BMR16Generator {
                     low_labels[z.id()] = Some(add_label(&x_0, &y_0));
                 }
                 ArithGate::Sub { x, y, z } => {
-                    // zero labels for input x and y
                     let x_0 = low_labels
                         .get(x.id())
                         .expect("label index out of range")

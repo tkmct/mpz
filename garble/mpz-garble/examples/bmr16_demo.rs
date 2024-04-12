@@ -97,7 +97,7 @@ impl CircuitConfig {
             config.push(ArithValueIdConfig::Private {
                 id: ValueId::new(&a_priv.0),
                 ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
+                value: Some(ArithValue::from(10)),
             })
         }
         for b_priv in self.b_private_inputs.iter() {
@@ -123,7 +123,7 @@ impl CircuitConfig {
             config.push(ArithValueIdConfig::Private {
                 id: ValueId::new(&b_priv.0),
                 ty: CrtValueType::U32,
-                value: Some(ArithValue::U32(10)),
+                value: Some(ArithValue::from(10)),
             })
         }
         config
@@ -260,13 +260,13 @@ fn parse_raw_circuit(
                 match gate.gate_type {
                     AGateType::AMul => {
                         let mut state = builder.state().borrow_mut();
-                        let out = cmul(&mut state, &v, c);
+                        let out = cmul(&mut state, &v, c as u64);
                         used_vars.insert(gate.output, out.clone());
                     }
                     AGateType::AAdd => {
                         let mut state = builder.state().borrow_mut();
                         // FIXME: this should be add gate?
-                        let out = cmul(&mut state, &v, c);
+                        let out = cmul(&mut state, &v, c as u64);
                         used_vars.insert(gate.output, out.clone());
                     }
 

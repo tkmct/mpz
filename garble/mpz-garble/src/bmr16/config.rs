@@ -54,4 +54,12 @@ impl ArithValueIdConfig {
             ArithValueIdConfig::Private { id, .. } => id,
         }
     }
+
+    /// Get inner value
+    pub fn value(&self) -> Option<ArithValue> {
+        match self {
+            ArithValueIdConfig::Public { value, .. } => Some(value.clone()),
+            ArithValueIdConfig::Private { value, .. } => value.clone(),
+        }
+    }
 }

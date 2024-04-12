@@ -161,7 +161,7 @@ impl ArithBuilderState {
     }
 
     /// Add CMUL gate to a circuit
-    pub(crate) fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: u32) -> ArithNode<Feed> {
+    pub(crate) fn add_cmul_gate(&mut self, x: &ArithNode<Feed>, c: u64) -> ArithNode<Feed> {
         let out = self.add_feed(x.modulus());
         let gate = ArithGate::Cmul {
             x: x.into(),

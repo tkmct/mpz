@@ -264,6 +264,7 @@ impl BMR16Generator {
         let inputs = inputs
             .iter()
             .map(|value| {
+                // println!("name: {:?}", value);
                 state
                     .encoding_registry
                     .get_encoding(value)
@@ -275,6 +276,7 @@ impl BMR16Generator {
 
         let mut batch: Vec<_>;
         let batch_size = self.config.batch_size;
+        let mut block_count = 0;
 
         sink.send(GarbleMessage::ArithEncryptedGates(vec![]))
             .await
@@ -296,6 +298,7 @@ impl BMR16Generator {
 
             if !batch.is_empty() {
                 // println!("[GEN] send the message: ArithEncryptedGates",);
+                block_count += batch.len();
                 sink.send(GarbleMessage::ArithEncryptedGates(batch))
                     .await
                     .unwrap();
@@ -304,6 +307,8 @@ impl BMR16Generator {
             }
             // println!("[GEN] gen.is_complete(): {}", gen.is_complete());
         }
+        println!("Block count sent to evaluator: {}", block_count);
+        println!("Data size in kb: {}", block_count * 128 / 8 / 1024);
 
         // println!("[GEN] gen.outputs()");
         let encoded_outputs = gen.outputs()?;
